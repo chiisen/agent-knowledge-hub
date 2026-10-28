@@ -27,6 +27,31 @@ go.work.sum
 
 # env file
 .env
+.env.*
+!.env.example
+!.env.sample
+
+# macOS metadata and local logs
+.DS_Store
+*.log
+
+# Local SQLite databases and journal sidecars
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+
+# Locally built server
+/knowledge-hub
 
 # Editor/IDE
 # .idea/
