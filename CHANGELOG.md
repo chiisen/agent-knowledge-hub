@@ -6,6 +6,9 @@
 
 ### 新增
 
+- Issue #2／Milestone 4：SQLite 有界四連線池、連線 PRAGMA 驗證、Busy/Locked 回應與 WAL checkpoint；HTTP panic recovery、1 MiB 回應上限及併發／容量 benchmarks。
+- 新增停機備份／還原流程、SQLite integrity／備份還原測試，以及 24 Client HTTP 併發讀寫測量；實測數據與限制見 `docs/milestone-4-review.md`。
+
 - Milestone 3：POST /api/v1/knowledge/search，SQLite FTS5 trigram title／content 子字串搜尋、BM25 排序、confirmed 預設與可選 status、專案篩選、有界分頁及摘要片段。
 - 新增 003 FTS migration、既有資料回填與 INSERT／內容更新索引 trigger；封存結果從搜尋排除。中文搜尋需至少三字，特殊 FTS 語法以安全 phrase 查詢處理。
 - 搜尋 Service、SQLite migration／索引同步及 HTTP 驗證測試。

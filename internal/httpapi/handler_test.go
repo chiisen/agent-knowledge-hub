@@ -5,14 +5,100 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/chiisen/agent-knowledge-hub/internal/knowledge"
+	"github.com/chiisen/agent-knowledge-hub/internal/sqlite"
 	_ "modernc.org/sqlite"
 )
+
+type panicRepository struct{}
+
+func (panicRepository) Create(context.Context, knowledge.Knowledge) (knowledge.Knowledge, error) {
+	panic("private panic detail")
+}
+func (panicRepository) Get(context.Context, string) (knowledge.Knowledge, error) {
+	panic("private panic detail")
+}
+func (panicRepository) List(context.Context, knowledge.Filter) (knowledge.Page, error) {
+	panic("private panic detail")
+}
+func (panicRepository) Search(context.Context, string, knowledge.Filter) (knowledge.SearchPage, error) {
+	panic("private panic detail")
+}
+func (panicRepository) Update(context.Context, knowledge.Knowledge, int64) (knowledge.Knowledge, error) {
+	panic("private panic detail")
+}
+func (panicRepository) Archive(context.Context, string, int64, time.Time) error {
+	panic("private panic detail")
+}
+
+func TestKnowledgeHandlerRecoversPanicWithoutLeakingDetails(t *testing.T) {
+	var logs bytes.Buffer
+	h := NewKnowledgeHandler(nil, knowledge.NewService(panicRepository{}), slog.New(slog.NewJSONHandler(&logs, nil)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/knowledge", nil))
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), `"code":"internal_error"`) {
+		t.Fatalf("panic response = %d %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String()+logs.String(), "private panic detail") {
+		t.Fatal("panic detail leaked")
+	}
+}
+
+func TestResponseBufferEnforcesEncodedResponseLimit(t *testing.T) {
+	buffer := newResponseBuffer()
+	buffer.Header().Set("X-Request-ID", "request-1")
+	buffer.WriteHeader(http.StatusOK)
+	if _, err := buffer.Write(bytes.Repeat([]byte("x"), maxResponseBytes+1)); err == nil {
+		t.Fatal("oversized write accepted")
+	}
+	w := httptest.NewRecorder()
+	buffer.commit(w, "request-1")
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "response_too_large") || !strings.Contains(w.Body.String(), "request-1") {
+		t.Fatalf("oversized response = %d %s", w.Code, w.Body.String())
+	}
+}
+
+type oversizedRepository struct{ *sqlite.Repository }
+
+func (oversizedRepository) List(context.Context, knowledge.Filter) (knowledge.Page, error) {
+	items := make([]knowledge.Knowledge, 17)
+	for i := range items {
+		items[i] = knowledge.Knowledge{ID: "oversized", Title: "title", Content: strings.Repeat("x", 64<<10), Type: "decision", Scope: "project", Status: "confirmed", Source: "test", Version: 1, UsableAsRule: true}
+	}
+	return knowledge.Page{Items: items}, nil
+}
+
+func TestKnowledgeAPIRejectsOversizedJSONResponse(t *testing.T) {
+	service := knowledge.NewService(&oversizedRepository{sqlite.NewRepository(nil)})
+	h := NewKnowledgeHandler(nil, service, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/knowledge", nil))
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "response_too_large") {
+		t.Fatalf("oversized API response = %d %s", w.Code, w.Body.String())
+	}
+}
+
+func BenchmarkHealthHandler(b *testing.B) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	h := NewHandler(db, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	}
+}
 
 func TestHealthAndErrors(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")

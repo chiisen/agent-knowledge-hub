@@ -2,7 +2,7 @@
 
 輕量、可自行部署的 AI Agent 長期知識 API Server。使用 Go、net/http 與 SQLite，不使用 Docker 或大型 Framework。
 
-Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、ETag 版本條件與封存；Milestone 3 新增 SQLite FTS5 trigram 全文搜尋。MCP、Embedding 與 Web UI 尚未實作。完整契約見 [docs/api.md](docs/api.md)。
+Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、Milestone 3 新增 FTS5 全文搜尋；Issue #2／Milestone 4 完成 HTTP／SQLite 併發與資源強化。MCP、Embedding 與 Web UI 尚未實作。完整契約見 [docs/api.md](docs/api.md)。
 
 ## 開發環境
 
@@ -27,11 +27,13 @@ curl http://127.0.0.1:8080/healthz
 - 成功健康回應為 `{"status":"ok"}`；DB 不可用時回 503 與不洩漏內部資訊的 JSON。
 - 日誌寫至 stderr；不記錄 Authorization、body、查詢字串或知識內容。
 - Ctrl+C／SIGTERM 觸發 Graceful Shutdown；先排空 HTTP，最多等候 10 秒，再取消請求並關閉 DB。
+- API Request 最長處理 5 秒，Request／Response body 分別限制 128 KiB／1 MiB；SQLite 使用最多 4 個連線、每連線 busy_timeout 2 秒。
+- Graceful Shutdown 排空請求後執行 WAL TRUNCATE checkpoint，再關閉資料庫；checkpoint 期限為 5 秒。
 - 本階段提供無 Token 的本機 healthz 與 Knowledge CRUD；同機呼叫端均視為可信，可確認與修改知識。Token 與遠端服務尚未實作，不可將服務轉送公開。
 
 ## SQLite
 
-- 單一連線，啟用 foreign_keys、WAL、busy_timeout=2000ms、synchronous=FULL。
+- 最多 4 個實體連線，啟用 foreign_keys、WAL、busy_timeout=2000ms、synchronous=FULL。
 - 每個新實體連線套用連線級 PRAGMA；啟動時使用暫存虛擬表確認 FTS5，隨即移除。
 - FTS5 trigram 索引 title／content，支援至少 3 Unicode 字元的子字串查詢；索引以 SQLite trigger 同步，FTS 表使用 external content 避免複製知識全文。
 - Migration runner 以交易維護 schema_migrations 與版本／檔名／SHA-256 checksum；拒絕已套用內容變動與未知版本。
@@ -42,6 +44,16 @@ curl http://127.0.0.1:8080/healthz
 - DB 放本機磁碟；不使用網路磁碟或同步中的雲端資料夾。資料未加密，目錄權限由部署者管理。
 - .gitignore 排除預設 data/、一般 SQLite 副檔名及 WAL／SHM／journal；自訂無副檔名的外部路徑需自行管理，不可強制加入 Git。
 - 正常停機後再備份；運作中不能只複製 .db 就視為完整備份。
+
+### 備份與還原
+
+請先停止服務並等待正常關機完成（包含 WAL checkpoint），再複製資料庫檔案。以下以預設 `data/knowledge.db` 為例：
+
+```sh
+cp data/knowledge.db /安全備份路徑/knowledge.db
+```
+
+還原時先停止服務，保留目前資料庫副本，再以備份檔覆蓋原路徑；確認目錄仍僅供服務使用者存取後啟動服務。啟動時 Migration runner 會驗證 schema 版本與 checksum；再以 `/healthz` 和 Knowledge API 讀取代表資料確認服務可用。不要只複製運作中的 `.db`，也不要把 `.db-wal`／`.db-shm` 當成可分開還原的備份。
 
 ## 驗證
 
@@ -56,8 +68,10 @@ git diff --check
 
 SQLite integration tests 使用暫存本機檔案；HTTP 啟停測試使用 loopback 臨時埠。沙箱若禁止 bind，應經核准重跑，不跳過測試。
 
-本次 macOS arm64 驗證：build／test／vet／race 通過；實際執行檔兩次啟動 healthz 回 200，SIGTERM 以 0 結束，Migration 只記錄一次且重啟保留資料。Windows／Linux 尚未實機驗證，效能基準留後續 Milestone。
+本次 macOS arm64 build／test／vet／race 與 Issue #2 benchmark 通過。M1 曾以實際執行檔驗證兩次啟動 healthz 回 200、SIGTERM 以 0 結束、Migration 只記錄一次且重啟保留資料；Issue #2 實測見 Review Report。Windows／Linux 尚未實機驗證。
 
 Milestone 2 另通過五個套件的全套測試與 Race Detector，包含 CRUD、輸入、分頁／篩選、ETag 競爭、封存、取消與錯誤保密測試。Milestone 3 新增搜尋 API，並將 Migration 升為三筆；FTS 搜尋契約與限制見 API 文件。
+
+Milestone 4 併發／容量實測與環境條件見 [Milestone 4 Review Report](docs/milestone-4-review.md)；數據是本機樣本，不代表性能 SLA。
 
 架構見 [docs/architecture.md](docs/architecture.md)，階段與未決事項見 [docs/implementation-plan.md](docs/implementation-plan.md)，開發規則見 [AGENTS.md](AGENTS.md)。

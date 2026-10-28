@@ -1,11 +1,21 @@
 # agent-knowledge-hub 專案規劃、架構設計與實作計畫
 
-> 狀態：Milestone 1 已提交為 44526f9；Milestone 2 CRUD 已完成；Issue #1 / Milestone 3 FTS5 搜尋已完成，等待人工 Review。
+> 狀態：Milestone 1–3 已實作；Issue #2／Milestone 4 HTTP、SQLite 併發與資源強化已實作，等待人工 Review。
 > 整理日期：2026-10-28。
 > 來源：本次對話的專案需求與前一輪架構建議。
 > 文件建立不代表架構選項已獲確認。第 10 節列出必須確認的需求。
 > 執行方式：依 Milestone 逐階段實作、測試及人工 Code Review；未經授權不得跨階段。
 > AI Agent 執行時使用適用的 executing-plans 流程；本文件不授權自動 commit、push 或開始下一階段。
+
+### 最新執行範圍覆蓋（Issue #2，2026-10-28）
+
+Issue #2 將 Milestone 4 定義為 HTTP API 強化、SQLite 併發處理與資源效率驗證；其命名覆蓋本計畫較早版本對 Milestone 4（REST API）的規劃，因 CRUD／搜尋 API 已先完成。此階段完成後停止，不開始其他功能。
+
+- [x] 有界四連線 SQLite pool，驗證每個實體連線 PRAGMA；Busy／Locked 回 503。
+- [x] 驗證多 Client 同時讀取、新增、更新；補足 API deadline、WAL checkpoint、panic recovery 與回應大小上限。
+- [x] 加入 benchmark 與 storage/integrity/backup-restore 測試；實測條件和數據見 `docs/milestone-4-review.md`。
+- [x] 更新 README、架構、CHANGELOG、任務狀態；提供停機備份還原步驟與 MVP 驗收清單。
+- [x] 完成 build、全套 test、race、vet、benchmarks、文件與 diff 檢查；commit／push 並關閉 Issue #2。
 
 ### 最新執行範圍覆蓋（2026-10-28）
 

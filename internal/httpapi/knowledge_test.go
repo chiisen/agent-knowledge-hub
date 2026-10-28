@@ -3,13 +3,18 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +38,204 @@ func apiFixture(t *testing.T) (http.Handler, *bytes.Buffer) {
 	}
 	var logs bytes.Buffer
 	return NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), slog.New(slog.NewJSONHandler(&logs, nil))), &logs
+}
+
+func TestHTTPConcurrentCreateAndUpdate(t *testing.T) {
+	h, _ := apiFixture(t)
+	server := httptest.NewServer(h)
+	defer server.Close()
+	const clients = 24
+	client := &http.Client{Timeout: 10 * time.Second}
+	paths := make([]string, clients)
+	createLatency := make([]time.Duration, clients)
+	var wg sync.WaitGroup
+	errCh := make(chan error, clients)
+	started := time.Now()
+	for i := 0; i < clients; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			requestStarted := time.Now()
+			request, err := http.NewRequest(http.MethodPost, server.URL+collection, strings.NewReader(strings.Replace(createBody, `"title":"title"`, fmt.Sprintf(`"title":"title-%d"`, i), 1)))
+			if err != nil {
+				errCh <- err
+				return
+			}
+			request.Header.Set("Content-Type", "application/json")
+			response, err := client.Do(request)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			var payload struct {
+				Data knowledge.Knowledge `json:"data"`
+			}
+			err = json.NewDecoder(response.Body).Decode(&payload)
+			response.Body.Close()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if response.StatusCode != http.StatusCreated {
+				errCh <- fmt.Errorf("create status=%d", response.StatusCode)
+				return
+			}
+			paths[i] = collection + "/" + payload.Data.ID
+			createLatency[i] = time.Since(requestStarted)
+		}(i)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatal(err)
+	}
+	createElapsed := time.Since(started)
+	updateLatency := make([]time.Duration, clients)
+	started = time.Now()
+	errCh = make(chan error, clients)
+	for i, path := range paths {
+		wg.Add(1)
+		go func(i int, path string) {
+			defer wg.Done()
+			requestStarted := time.Now()
+			request, err := http.NewRequest(http.MethodPatch, server.URL+path, strings.NewReader(`{"content":"concurrent update"}`))
+			if err != nil {
+				errCh <- err
+				return
+			}
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("If-Match", `"1"`)
+			response, err := client.Do(request)
+			if err == nil {
+				response.Body.Close()
+				if response.StatusCode != http.StatusOK {
+					err = fmt.Errorf("update status=%d", response.StatusCode)
+				}
+			}
+			if err != nil {
+				errCh <- err
+			} else {
+				updateLatency[i] = time.Since(requestStarted)
+			}
+		}(i, path)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatal(err)
+	}
+	updateElapsed := time.Since(started)
+	readLatency := make([]time.Duration, clients)
+	started = time.Now()
+	errCh = make(chan error, clients)
+	for i, path := range paths {
+		wg.Add(1)
+		go func(i int, path string) {
+			defer wg.Done()
+			requestStarted := time.Now()
+			response, err := client.Get(server.URL + path)
+			if err == nil {
+				response.Body.Close()
+				if response.StatusCode != http.StatusOK {
+					err = fmt.Errorf("read status=%d", response.StatusCode)
+				}
+			}
+			if err != nil {
+				errCh <- err
+			} else {
+				readLatency[i] = time.Since(requestStarted)
+			}
+		}(i, path)
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatal(err)
+	}
+	readElapsed := time.Since(started)
+	t.Logf("environment=%s/%s %s clients=%d rows=%d create throughput=%.1f req/s p50=%s p95=%s; update throughput=%.1f req/s p50=%s p95=%s; read throughput=%.1f req/s p50=%s p95=%s",
+		runtime.GOOS, runtime.GOARCH, runtime.Version(), clients, clients,
+		float64(clients)/createElapsed.Seconds(), percentile(createLatency, 50), percentile(createLatency, 95),
+		float64(clients)/updateElapsed.Seconds(), percentile(updateLatency, 50), percentile(updateLatency, 95),
+		float64(clients)/readElapsed.Seconds(), percentile(readLatency, 50), percentile(readLatency, 95))
+}
+
+func percentile(values []time.Duration, p int) time.Duration {
+	ordered := append([]time.Duration(nil), values...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+	index := (p*len(ordered)+99)/100 - 1
+	if index < 0 {
+		index = 0
+	}
+	return ordered[index]
+}
+
+func TestHTTPBusyDatabaseReturns503(t *testing.T) {
+	db, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "busy.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := sqlite.Migrate(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(context.Background(), "BEGIN EXCLUSIVE"); err != nil {
+		t.Fatal(err)
+	}
+	defer conn.ExecContext(context.Background(), "ROLLBACK")
+	h := NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, collection, strings.NewReader(createBody))
+	r.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "database_busy") {
+		t.Fatalf("busy response = %d %s", w.Code, w.Body.String())
+	}
+}
+
+type deadlineRepository struct{ *sqlite.Repository }
+
+func (deadlineRepository) List(ctx context.Context, _ knowledge.Filter) (knowledge.Page, error) {
+	<-ctx.Done()
+	return knowledge.Page{}, ctx.Err()
+}
+
+func TestKnowledgeRequestDeadlineReturns503(t *testing.T) {
+	var logs bytes.Buffer
+	h := NewKnowledgeHandler(nil, knowledge.NewService(&deadlineRepository{sqlite.NewRepository(nil)}), slog.New(slog.NewJSONHandler(&logs, nil)))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, collection, nil))
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "request_timeout") {
+		t.Fatalf("deadline response = %d %s", w.Code, w.Body.String())
+	}
+}
+
+func BenchmarkKnowledgeList(b *testing.B) {
+	db, err := sqlite.Open(context.Background(), filepath.Join(b.TempDir(), "benchmark.db"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	if err := sqlite.Migrate(context.Background(), db); err != nil {
+		b.Fatal(err)
+	}
+	svc := knowledge.NewService(sqlite.NewRepository(db))
+	for i := 0; i < 100; i++ {
+		if _, err := svc.Create(context.Background(), knowledge.Create{Title: fmt.Sprintf("title-%d", i), Content: "benchmark content", Type: "decision", Scope: "project", Status: "confirmed", Source: "benchmark"}); err != nil {
+			b.Fatal(err)
+		}
+	}
+	h := NewKnowledgeHandler(db, svc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, collection, nil))
+	}
 }
 
 func apiRequest(t *testing.T, h http.Handler, method, path, body, etag string, want int) *httptest.ResponseRecorder {
@@ -378,17 +581,22 @@ func TestKnowledgeAPICancellationAndDatabaseErrors(t *testing.T) {
 			t.Fatalf("canceled %s = %d", tc.method, w.Code)
 		}
 	}
-	// Occupy the only connection and ensure HTTP propagates a short deadline to SQL.
-	conn, err := db.Conn(context.Background())
-	if err != nil {
-		t.Fatal(err)
+	// Occupy the bounded pool and ensure HTTP propagates a short deadline to SQL.
+	conns := make([]*sql.Conn, db.Stats().MaxOpenConnections)
+	for i := range conns {
+		conns[i], err = db.Conn(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	r := httptest.NewRequest("GET", collection, nil).WithContext(ctx)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
-	conn.Close()
+	for _, conn := range conns {
+		conn.Close()
+	}
 	if w.Code != 503 {
 		t.Fatalf("pool timeout status=%d", w.Code)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -62,5 +63,12 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (err error) {
 	}
 	logger.Info("HTTP server started", "addr", ln.Addr().String())
 	service := knowledge.NewService(sqlite.NewRepository(db))
-	return httpapi.Serve(ctx, ln, httpapi.NewKnowledgeHandler(db, service, logger), logger, 10*time.Second)
+	serveErr := httpapi.Serve(ctx, ln, httpapi.NewKnowledgeHandler(db, service, logger), logger, 10*time.Second)
+	checkpointCtx, cancelCheckpoint := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCheckpoint()
+	if checkpointErr := sqlite.Checkpoint(checkpointCtx, db); checkpointErr != nil {
+		logger.Error("checkpoint SQLite WAL", "error_kind", "checkpoint_failed", "error", checkpointErr)
+		return errors.Join(serveErr, checkpointErr)
+	}
+	return serveErr
 }

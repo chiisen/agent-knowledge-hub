@@ -49,9 +49,10 @@ func Open(ctx context.Context, path string) (_ *sql.DB, err error) {
 			db.Close()
 		}
 	}()
-	// M1 has no workload requiring multiple pools; serialize through one connection.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	// Keep a small bounded pool for concurrent HTTP requests. The URI PRAGMAs
+	// above are applied by the driver to every physical connection.
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(4)
 	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("ping SQLite during initialization: %w", err)
 	}
@@ -74,4 +75,17 @@ func Open(ctx context.Context, path string) (_ *sql.DB, err error) {
 		return nil, fmt.Errorf("clean SQLite FTS5 probe: %w", err)
 	}
 	return db, nil
+}
+
+// Checkpoint copies committed WAL pages back into the database and truncates
+// the WAL. Call after request draining, before closing the database.
+func Checkpoint(ctx context.Context, db *sql.DB) error {
+	var busy, logFrames, checkpointed int
+	if err := db.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logFrames, &checkpointed); err != nil {
+		return fmt.Errorf("checkpoint SQLite WAL: %w", err)
+	}
+	if busy != 0 {
+		return fmt.Errorf("checkpoint SQLite WAL: checkpoint remained busy (%d frames, %d copied)", logFrames, checkpointed)
+	}
+	return nil
 }

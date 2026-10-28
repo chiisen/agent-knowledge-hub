@@ -1,6 +1,15 @@
 # 架構與 Milestone 邊界
 
-狀態：Milestone 1 已提交為 44526f9；Milestone 2 CRUD 與 Milestone 3 FTS5 搜尋已實作並待 Review。
+狀態：Milestone 1–3 已實作；Issue #2／Milestone 4 併發與資源強化已實作並待 Review。
+
+## Issue #2／Milestone 4：併發與資源強化
+
+- SQLite 使用最多 4 條受限連線；所有實體連線以 driver URI 套用 foreign_keys、busy_timeout=2000ms、synchronous=FULL、cache_size 與 wal_autocheckpoint。讀取可並行，SQLite 寫入仍由 WAL 單寫者序列化；SQLITE_BUSY／LOCKED 映射為穩定 503 `database_busy`。
+- Knowledge API deadline 為 5 秒；HTTP header／read／write／idle timeout 為 5／10／10／60 秒。Graceful Shutdown 等候最多 10 秒，取消剩餘請求後，在 5 秒期限內執行 WAL `TRUNCATE` checkpoint，再關閉 DB。
+- 每個回應在寫入 socket 前由有界 buffer 暫存，最大 1 MiB；超限改回穩定 JSON 500 `response_too_large`。Request body 上限仍為 128 KiB。Handler recovery 回應 500 `internal_error`，日誌只記 panic 型別與 request ID，不記 panic 值或 stack 中的敏感訊息。
+- HTTP 日誌使用 JSON slog，含 request ID、method、route template、status、duration；不記錄 query string、body 或知識內容。未知路徑只記 `unmatched`。
+- `sqlite.Checkpoint` 只應在排空請求後使用；基本備份流程要求服務正常停止後複製單一 DB 檔，還原需先停止服務。未提供線上備份或增量備份 API。
+- Benchmarks 固定報告 `ns/op`、`B/op`、`allocs/op`；SQLite create benchmark 另回報資料列數、checkpoint 後 DB／WAL bytes。併發 HTTP 測試記錄 24 clients 的 create／update／read 延遲與 throughput。結果與測試環境列於 `docs/milestone-4-review.md`，不是 SLA。
 
 ## Milestone 3：全文搜尋
 
@@ -46,7 +55,7 @@ healthz 直接依賴 database/sql 的 PingContext，沒有 Knowledge Service 行
 
 僅接受 literal loopback IP，預設 127.0.0.1:8080；不提供遠端開關或 Token，以免未具備知識 API 授權前開放網路。Request ID 由伺服器產生，不信任外部標頭。
 
-僅一個 SQLite 連線，無背景排程。以固定 driver PRAGMA 選項配置每個連線：foreign_keys=1、busy_timeout=2000、synchronous=FULL、cache_size=-2048、wal_autocheckpoint=1000。啟動時設定並讀回 WAL；不增加多個讀寫池。
+最多四個 SQLite 連線，無背景排程。以固定 driver PRAGMA 選項配置每個連線：foreign_keys=1、busy_timeout=2000、synchronous=FULL、cache_size=-2048、wal_autocheckpoint=1000。啟動時設定並讀回 WAL；不增加多個讀寫池。
 
 FTS5 probe 使用同一實體連線上的 temp 虛擬表，完成後移除，不建立知識索引或決定 tokenizer。SQLite 驅動固定 v1.61.0，本次本機測試內嵌版本為 3.54.1。
 
