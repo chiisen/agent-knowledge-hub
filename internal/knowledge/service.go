@@ -84,6 +84,52 @@ func (s *Service) List(ctx context.Context, f Filter) (Page, error) {
 	return s.repo.List(ctx, f)
 }
 
+func normalizeSearchQuery(query string) (string, error) {
+	if !utf8.ValidString(query) || strings.ContainsRune(query, '\x00') || strings.TrimSpace(query) == "" || utf8.RuneCountInString(query) > 256 {
+		return "", fmt.Errorf("%w: query is required and must be at most 256 characters", ErrInvalid)
+	}
+	terms := strings.Fields(query)
+	if len(terms) == 0 || len(terms) > 8 {
+		return "", fmt.Errorf("%w: query must contain 1 to 8 terms", ErrInvalid)
+	}
+	quoted := make([]string, 0, len(terms))
+	for _, term := range terms {
+		if utf8.RuneCountInString(term) < 3 {
+			return "", fmt.Errorf("%w: each search term must contain at least 3 characters", ErrInvalid)
+		}
+		quoted = append(quoted, `"`+strings.ReplaceAll(term, `"`, `""`)+`"`)
+	}
+	return strings.Join(quoted, " AND "), nil
+}
+
+func (s *Service) Search(ctx context.Context, query string, f Filter) (SearchPage, error) {
+	if err := ctx.Err(); err != nil {
+		return SearchPage{}, err
+	}
+	normalized, err := normalizeSearchQuery(query)
+	if err != nil {
+		return SearchPage{}, err
+	}
+	if f.Limit == 0 {
+		f.Limit = 20
+	}
+	if f.Status == "" {
+		f.Status = "confirmed"
+	}
+	if f.Limit < 1 || f.Limit > 100 || f.Offset < 0 || f.Offset > 10000 {
+		return SearchPage{}, fmt.Errorf("%w: pagination is out of range", ErrInvalid)
+	}
+	if !validStatus(f.Status) {
+		return SearchPage{}, fmt.Errorf("%w: unsupported status", ErrInvalid)
+	}
+	for _, v := range []string{f.Project, f.Module, f.Type, f.Scope} {
+		if !utf8.ValidString(v) || utf8.RuneCountInString(v) > 128 {
+			return SearchPage{}, fmt.Errorf("%w: filter exceeds 128 characters", ErrInvalid)
+		}
+	}
+	return s.repo.Search(ctx, normalized, f)
+}
+
 func (s *Service) Update(ctx context.Context, id string, version int64, p Patch) (Knowledge, error) {
 	if err := ctx.Err(); err != nil {
 		return Knowledge{}, err

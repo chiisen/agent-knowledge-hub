@@ -92,6 +92,43 @@ func (r *Repository) List(ctx context.Context, f knowledge.Filter) (knowledge.Pa
 	}
 	return page, nil
 }
+
+func (r *Repository) Search(ctx context.Context, query string, f knowledge.Filter) (knowledge.SearchPage, error) {
+	var sqlQuery strings.Builder
+	sqlQuery.WriteString(`SELECT k.id,k.title,snippet(knowledge_fts,2,'[',']','…',16),k.status,k.source
+FROM knowledge_fts JOIN knowledge k ON k.rowid=knowledge_fts.rowid
+WHERE knowledge_fts MATCH ? AND k.archived_at IS NULL`)
+	args := []any{query}
+	for _, filter := range []struct{ name, value string }{{"project", f.Project}, {"module", f.Module}, {"type", f.Type}, {"scope", f.Scope}, {"status", f.Status}} {
+		if filter.value != "" {
+			sqlQuery.WriteString(" AND k." + filter.name + "=?")
+			args = append(args, filter.value)
+		}
+	}
+	sqlQuery.WriteString(" ORDER BY bm25(knowledge_fts,0.0,5.0,1.0),k.id LIMIT ? OFFSET ?")
+	args = append(args, f.Limit+1, f.Offset)
+	rows, err := r.db.QueryContext(ctx, sqlQuery.String(), args...)
+	if err != nil {
+		return knowledge.SearchPage{}, fmt.Errorf("search knowledge: %w", err)
+	}
+	defer rows.Close()
+	page := knowledge.SearchPage{Items: make([]knowledge.SearchResult, 0, f.Limit)}
+	for rows.Next() {
+		var result knowledge.SearchResult
+		if err := rows.Scan(&result.ID, &result.Title, &result.Summary, &result.Status, &result.Source); err != nil {
+			return page, fmt.Errorf("scan knowledge search result: %w", err)
+		}
+		page.Items = append(page.Items, result)
+	}
+	if err := rows.Err(); err != nil {
+		return page, fmt.Errorf("iterate knowledge search: %w", err)
+	}
+	page.HasMore = len(page.Items) > f.Limit
+	if page.HasMore {
+		page.Items = page.Items[:f.Limit]
+	}
+	return page, nil
+}
 func (r *Repository) Update(ctx context.Context, k knowledge.Knowledge, version int64) (knowledge.Knowledge, error) {
 	got, err := scanKnowledge(r.db.QueryRowContext(ctx, `UPDATE knowledge SET title=?,content=?,type=?,scope=?,project=?,module=?,status=?,source=?,updated_at=?,version=version+1
   WHERE id=? AND version=? AND archived_at IS NULL RETURNING `+columns, k.Title, k.Content, k.Type, k.Scope, k.Project, k.Module, k.Status, k.Source, k.UpdatedAt.UnixMilli(), k.ID, version))

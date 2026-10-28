@@ -46,7 +46,11 @@ func newHandler(db *sql.DB, service *knowledge.Service, logger *slog.Logger) htt
 		if service != nil && (r.URL.Path == knowledgePath || strings.HasPrefix(r.URL.Path, knowledgePath+"/")) {
 			route = knowledgePath
 			if r.URL.Path != knowledgePath {
-				route += "/{id}"
+				if r.URL.Path == knowledgePath+"/search" {
+					route += "/search"
+				} else {
+					route += "/{id}"
+				}
 			}
 			status = serveKnowledge(w, r, id, logger, service, fail)
 			return

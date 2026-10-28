@@ -62,11 +62,25 @@ type Page struct {
 	HasMore bool
 }
 
+type SearchResult struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+}
+
+type SearchPage struct {
+	Items   []SearchResult
+	HasMore bool
+}
+
 // Repository exposes application types only, never SQLite or HTTP structures.
 type Repository interface {
 	Create(context.Context, Knowledge) (Knowledge, error)
 	Get(context.Context, string) (Knowledge, error)
 	List(context.Context, Filter) (Page, error)
+	Search(context.Context, string, Filter) (SearchPage, error)
 	Update(context.Context, Knowledge, int64) (Knowledge, error)
 	Archive(context.Context, string, int64, time.Time) error
 }

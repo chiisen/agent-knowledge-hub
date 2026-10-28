@@ -141,6 +141,67 @@ func TestKnowledgeAPIWorkflow(t *testing.T) {
 	}
 }
 
+func TestKnowledgeSearchAPI(t *testing.T) {
+	h, logs := apiFixture(t)
+	base := strings.Replace(createBody, `"content":"hidden-content"`, `"content":"SQLite storage keeps transactions small"`, 1)
+	for _, body := range []string{
+		strings.Replace(strings.Replace(base, `"title":"title"`, `"title":"SQLite trigram"`, 1), `"source":`, `"status":"confirmed","source":`, 1),
+		strings.Replace(strings.Replace(base, `"title":"title"`, `"title":"SQLite draft"`, 1), `"alpha"`, `"beta"`, 1),
+		strings.Replace(strings.Replace(strings.Replace(base, `"title":"title"`, `"title":"SQLite second"`, 1), `"alpha"`, `"beta"`, 1), `"source":`, `"status":"confirmed","source":`, 1),
+		strings.Replace(strings.Replace(strings.Replace(base, `"title":"title"`, `"title":"SQLite deprecated"`, 1), `"alpha"`, `"gamma"`, 1), `"source":`, `"status":"deprecated","source":`, 1),
+	} {
+		apiRequest(t, h, "POST", collection, body, "", 201)
+	}
+	w := apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite"}`, "", 200)
+	if n, _ := pageSize(t, w); n != 2 {
+		t.Fatalf("default status search count=%d", n)
+	}
+	w = apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite","status":"draft","project":"beta"}`, "", 200)
+	if n, _ := pageSize(t, w); n != 1 {
+		t.Fatalf("explicit draft search count=%d", n)
+	}
+	if n, _ := pageSize(t, apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite","status":"deprecated"}`, "", 200)); n != 1 {
+		t.Fatalf("explicit deprecated search count=%d", n)
+	}
+	apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite*'quoted'"}`, "", 200)
+	operatorQuery := apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite AND storage"}`, "", 200)
+	if n, _ := pageSize(t, operatorQuery); n != 0 {
+		t.Fatal("FTS operator text was executed instead of searched literally")
+	}
+	apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite\"quoted"}`, "", 200)
+	var result struct {
+		Data       []knowledge.SearchResult
+		Pagination struct {
+			HasMore bool `json:"has_more"`
+		}
+	}
+	w = apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite storage","project":"alpha","module":"payments","type":"decision","scope":"project","status":"confirmed","limit":1}`, "", 200)
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Data) != 1 || result.Data[0].Title != "SQLite trigram" || result.Data[0].Summary == "" || result.Pagination.HasMore {
+		t.Fatalf("unexpected project-scoped result: %+v", result)
+	}
+	w = apiRequest(t, h, "POST", collection+"/search", `{"query":"SQLite","limit":1}`, "", 200)
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Data) != 1 || !result.Pagination.HasMore {
+		t.Fatalf("search pagination = %+v", result)
+	}
+	if n, _ := pageSize(t, apiRequest(t, h, "POST", collection+"/search", `{"query":"不存在詞"}`, "", 200)); n != 0 {
+		t.Fatal("no-result search returned data")
+	}
+	apiRequest(t, h, "POST", collection+"/search", `{"query":"secret-sensitive-search"}`, "", 200)
+	if strings.Contains(logs.String(), "secret-sensitive-search") {
+		t.Fatal("search query leaked to logs")
+	}
+	for _, body := range []string{`{}`, `{"query":"中"}`, `{"query":"foo OR bar"}`, `{"query":"SQLite","status":"bad"}`, `{"query":"SQLite","limit":101}`, `{"query":"SQLite","unknown":1}`, `{"query":null}`, `{"query":"SQLite","limit":null}`, `{"query":"SQLite","project":" "}`} {
+		apiRequest(t, h, "POST", collection+"/search", body, "", 422)
+	}
+	apiRequest(t, h, "POST", collection+"/search", `{`, "", 400)
+}
+
 func TestKnowledgeAPIValidation(t *testing.T) {
 	h, _ := apiFixture(t)
 	k := record(t, apiRequest(t, h, "POST", collection, createBody, "", 201))

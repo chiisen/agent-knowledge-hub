@@ -2,7 +2,7 @@
 
 輕量、可自行部署的 AI Agent 長期知識 API Server。使用 Go、net/http 與 SQLite，不使用 Docker 或大型 Framework。
 
-Milestone 1 已提交為 44526f9。Milestone 2 已完成本機實作與驗證，等待人工 Review：Knowledge CRUD、ETag 版本條件與封存。不提供搜尋 API、MCP、Embedding 或 Web UI。完整契約見 [docs/api.md](docs/api.md)。
+Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、ETag 版本條件與封存；Milestone 3 新增 SQLite FTS5 trigram 全文搜尋。MCP、Embedding 與 Web UI 尚未實作。完整契約見 [docs/api.md](docs/api.md)。
 
 ## 開發環境
 
@@ -33,7 +33,7 @@ curl http://127.0.0.1:8080/healthz
 
 - 單一連線，啟用 foreign_keys、WAL、busy_timeout=2000ms、synchronous=FULL。
 - 每個新實體連線套用連線級 PRAGMA；啟動時使用暫存虛擬表確認 FTS5，隨即移除。
-- 不建立正式知識全文索引，避免提前決定 tokenizer。
+- FTS5 trigram 索引 title／content，支援至少 3 Unicode 字元的子字串查詢；索引以 SQLite trigger 同步，FTS 表使用 external content 避免複製知識全文。
 - Migration runner 以交易維護 schema_migrations 與版本／檔名／SHA-256 checksum；拒絕已套用內容變動與未知版本。
 - knowledge 採已確認的最小 Schema：id 為 UUID 字串用途的 TEXT 主鍵；title、content、type、scope 非空，project／module 可為 NULL，status 預設 draft 並限 draft／confirmed／deprecated，source 為純 TEXT，時間為 UTC Unix milliseconds。
 - type／scope 暫不限詞彙，source 不強制 JSON；不建立 Evidence 表、修訂歷史或確認欄位。CRUD 層驗證 UUID、必要欄位、字串大小與狀態，時間由伺服器產生。
@@ -58,6 +58,6 @@ SQLite integration tests 使用暫存本機檔案；HTTP 啟停測試使用 loop
 
 本次 macOS arm64 驗證：build／test／vet／race 通過；實際執行檔兩次啟動 healthz 回 200，SIGTERM 以 0 結束，Migration 只記錄一次且重啟保留資料。Windows／Linux 尚未實機驗證，效能基準留後續 Milestone。
 
-Milestone 2 另通過五個套件的全套測試與 Race Detector，包含 M1→M2 升級、CRUD、無效輸入、分頁／篩選、ETag 競爭、封存、取消與錯誤保密測試；實際執行檔已驗證 POST／PATCH／GET／DELETE、412 衝突及 SIGTERM 關機。前段「Migration 一筆」描述 M1；當前啟動會套用兩筆 Migration。
+Milestone 2 另通過五個套件的全套測試與 Race Detector，包含 CRUD、輸入、分頁／篩選、ETag 競爭、封存、取消與錯誤保密測試。Milestone 3 新增搜尋 API，並將 Migration 升為三筆；FTS 搜尋契約與限制見 API 文件。
 
 架構見 [docs/architecture.md](docs/architecture.md)，階段與未決事項見 [docs/implementation-plan.md](docs/implementation-plan.md)，開發規則見 [AGENTS.md](AGENTS.md)。

@@ -55,3 +55,20 @@ func TestPatchConfirmedKnowledgeRequiresSeparateConfirmation(t *testing.T) {
 		t.Fatalf("empty patch = %v", err)
 	}
 }
+
+func TestValidateSearchQuery(t *testing.T) {
+	for _, tc := range []struct {
+		query string
+		valid bool
+	}{
+		{"SQLite WAL", true}, {"知識搜尋", true}, {" OR ", false}, {"中", false}, {"ab", false},
+		{strings.Repeat("字", 257), false}, {"a\x00b", false},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			_, err := normalizeSearchQuery(tc.query)
+			if (err == nil) != tc.valid {
+				t.Fatalf("normalizeSearchQuery(%q) error=%v", tc.query, err)
+			}
+		})
+	}
+}

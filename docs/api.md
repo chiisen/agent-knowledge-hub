@@ -1,4 +1,4 @@
-# REST API：Milestone 2
+# REST API：Milestone 3
 
 基底位址預設 `http://127.0.0.1:8080`。只允許 literal loopback IP，沒有 Token 驗證；同一主機上的呼叫端均視為可信，可修改與確認知識。禁止將本服務透過轉送／代理公開為無驗證 API。遠端存取與權限管理留待後續決策。
 
@@ -159,4 +159,38 @@ curl -i -X DELETE 'http://127.0.0.1:8080/api/v1/knowledge/<UUID>' \
   -H 'If-Match: "2"'
 ```
 
-不提供 FTS5 搜尋、Embedding 或 MCP 端點。
+## POST /api/v1/knowledge/search
+
+以 JSON body 搜尋 title／content。FTS5 使用 trigram tokenizer，支援 3 個以上 Unicode 字元的子字串搜尋；query 最多 256 個字元、1–8 個以空白分隔的詞，每個詞至少 3 個字元。1–2 字元搜尋回 422，不會退化成資料表掃描。這也代表兩字中文詞目前不支援，請使用至少三字的片語。
+
+服務會將每個詞轉成引號包住的 FTS phrase，並以 AND 組合；使用者不能傳入 FTS 運算式。標點符號可作為詞內容搜尋，不會被當成 FTS 控制語法。搜尋字串與篩選值都以 SQL 參數傳入。
+
+```json
+{
+  "query": "SQLite WAL",
+  "project": "agent-knowledge-hub",
+  "module": "storage",
+  "type": "convention",
+  "scope": "project",
+  "status": "confirmed",
+  "limit": 20,
+  "offset": 0
+}
+```
+
+query 必填。project、module、type、scope、status 為可選精確篩選，條件以 AND 合併；status 預設 confirmed，也可明確搜尋 draft 或 deprecated。scope／project 是分類篩選，不是授權隔離。
+
+limit 預設 20、範圍 1–100；offset 預設 0、範圍 0–10,000；超出範圍回 422。回傳最多 limit 筆，另以 has_more 表示是否還有結果，不執行總數統計。
+
+結果依 FTS5 BM25 相關性排序，標題權重高於內容；summary 是內容命中片段。只回 id、title、summary、status、source，不回傳完整內容。封存知識不會出現在搜尋結果。索引隨新增／標題與內容更新由 SQLite trigger 同步；封存列保留索引但由 archived_at 條件排除。
+
+```json
+{
+  "data": [{"id":"...","title":"SQLite WAL","summary":"...使用 [WAL]...","status":"confirmed","source":"review"}],
+  "pagination": {"limit":20,"offset":0,"has_more":false}
+}
+```
+
+搜尋 JSON 錯誤回 400；欄位、狀態、query 長度／詞數、短詞或分頁錯誤回 422。搜尋字串不寫入日誌。
+
+不提供 Embedding 或 MCP 端點。

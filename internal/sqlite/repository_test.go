@@ -33,6 +33,10 @@ func TestUpgradeFromMilestone1PreservesData(t *testing.T) {
 	if err := Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
+	legacySearch, err := NewRepository(db).Search(ctx, `"retained"`, knowledge.Filter{Status: "draft", Limit: 20})
+	if err != nil || len(legacySearch.Items) != 1 || legacySearch.Items[0].ID != id {
+		t.Fatalf("legacy FTS backfill = %+v, err=%v", legacySearch, err)
+	}
 	if err := Migrate(ctx, db); err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +116,9 @@ func TestRepositoryCRUDConflictArchiveAndCancellation(t *testing.T) {
 	if _, err := repo.List(canceled, knowledge.Filter{Status: "draft", Limit: 20}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled list = %v", err)
 	}
+	if _, err := svc.Search(canceled, "secret", knowledge.Filter{Status: "draft", Limit: 20}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled search = %v", err)
+	}
 	if _, err := svc.Create(canceled, knowledge.Create{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled create = %v", err)
 	}
@@ -125,3 +132,74 @@ func TestRepositoryCRUDConflictArchiveAndCancellation(t *testing.T) {
 		t.Fatalf("canceled SQL archive = %v", err)
 	}
 }
+
+func TestSearchIndexTracksCreateUpdateAndArchive(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "knowledge.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := Migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	svc := knowledge.NewService(NewRepository(db))
+	k, err := svc.Create(ctx, knowledge.Create{Title: "SQLite trigram", Content: "支付模組採用短交易鎖", Type: "decision", Scope: "project", Project: ptr("alpha"), Status: "confirmed", Source: "review note"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := svc.Search(ctx, "支付模組", knowledge.Filter{Limit: 20})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != k.ID || page.Items[0].Source != "review note" {
+		t.Fatalf("Chinese search = %+v, %v", page, err)
+	}
+	old := k.Content
+	updated, err := svc.Update(ctx, k.ID, k.Version, knowledge.Patch{Content: ptr("SQLite query uses bound parameters")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err = svc.Search(ctx, "支付模組", knowledge.Filter{Limit: 20})
+	if err != nil || len(page.Items) != 0 {
+		t.Fatalf("stale content remains searchable: %+v, %v", page, err)
+	}
+	page, err = svc.Search(ctx, "bound parameters", knowledge.Filter{Status: "draft", Limit: 20})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("updated content not indexed: %+v, %v", page, err)
+	}
+	if err := svc.Archive(ctx, k.ID, updated.Version); err != nil {
+		t.Fatal(err)
+	}
+	page, err = svc.Search(ctx, "bound parameters", knowledge.Filter{Status: "draft", Limit: 20})
+	if err != nil || len(page.Items) != 0 {
+		t.Fatalf("archived item searchable: %+v, %v", page, err)
+	}
+	if old == updated.Content {
+		t.Fatal("test fixture did not change content")
+	}
+}
+
+func TestSearchRanksTitleMatchesAboveContentMatches(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "knowledge.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := Migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	svc := knowledge.NewService(NewRepository(db))
+	for _, input := range []knowledge.Create{
+		{Title: "prioritymarker", Content: "The title has the match.", Type: "decision", Scope: "project", Status: "confirmed", Source: "test"},
+		{Title: "Unrelated heading", Content: "The content has prioritymarker.", Type: "decision", Scope: "project", Status: "confirmed", Source: "test"},
+	} {
+		if _, err := svc.Create(ctx, input); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page, err := svc.Search(ctx, "prioritymarker", knowledge.Filter{Limit: 20})
+	if err != nil || len(page.Items) != 2 || page.Items[0].Title != "prioritymarker" {
+		t.Fatalf("BM25 ranking = %+v, err=%v", page, err)
+	}
+}
+
+func ptr(s string) *string { return &s }

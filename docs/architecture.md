@@ -1,6 +1,15 @@
 # 架構與 Milestone 邊界
 
-狀態：Milestone 1 已提交為 44526f9；Milestone 2 本機實作與驗證完成，等待人工 Review。
+狀態：Milestone 1 已提交為 44526f9；Milestone 2 CRUD 與 Milestone 3 FTS5 搜尋已實作並待 Review。
+
+## Milestone 3：全文搜尋
+
+- 003_knowledge_search.sql 建立 FTS5 external-content 表，使用 trigram tokenizer，初次建立時 rebuild 回填既有知識。
+- SQLite trigger 隨 INSERT 及 title／content UPDATE 原子維護索引；封存只設定 archived_at，搜尋 Join 主表並排除封存資料。軟刪除保留索引條目，不另做不必要的索引更新。
+- Repository.Search 接收應用層模型，使用參數化 MATCH 與篩選條件；Service 將一般文字轉成引號詞組並 AND 組合，呼叫端不能執行 FTS 語法。
+- query 1–256 Unicode 字元、1–8 個空白分隔詞，每詞至少 3 字元；因此兩字中文搜尋不支援，短詞明確 422。
+- BM25 對標題配置較高權重；結果只含 ID、標題、內容摘要片段、狀態及來源。結果上限 100、採 limit+1 判定 has_more。
+- FTS external content 從 knowledge 主表讀取摘要文字，避免在索引再保存一份完整知識內容；trigram 索引仍會消耗額外 DB 空間。
 
 ## Milestone 2
 

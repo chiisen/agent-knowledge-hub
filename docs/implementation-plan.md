@@ -1,6 +1,6 @@
 # agent-knowledge-hub 專案規劃、架構設計與實作計畫
 
-> 狀態：Milestone 1 已提交為 44526f9；Milestone 2 已完成本機實作與驗證，等待人工 Review，其餘規劃仍待確認。
+> 狀態：Milestone 1 已提交為 44526f9；Milestone 2 CRUD 已完成；Issue #1 / Milestone 3 FTS5 搜尋已完成，等待人工 Review。
 > 整理日期：2026-10-28。
 > 來源：本次對話的專案需求與前一輪架構建議。
 > 文件建立不代表架構選項已獲確認。第 10 節列出必須確認的需求。
@@ -9,7 +9,7 @@
 
 ### 最新執行範圍覆蓋（2026-10-28）
 
-M2 最新授權優先於下方舊階段草案：本階段完成五個 Knowledge CRUD REST API、Service／Repository 分層、驗證、篩選／分頁、Context／Request ID、新 Migration 與 API 文件；不加入搜尋、Embedding、MCP 或其他無關重構。
+M2 已完成五個 Knowledge CRUD REST API、Service／Repository 分層、驗證、篩選／分頁、Context／Request ID 與 Migration。Issue #1 授權 Milestone 3 加入 FTS5 搜尋；不加入 Embedding、MCP 或其他無關重構。
 
 使用者已確認三項：1. version／ETag，PATCH／DELETE 要求 If-Match；2. 本機呼叫端可信，可設定三種 status，confirmed 內容／來源修改降 draft 並另次確認；3. 列表預設 confirmed，DELETE 採 archived_at 封存，隱藏 GET／PATCH／列表，重複 DELETE 回 204，無恢復功能。
 
@@ -29,6 +29,14 @@ M1 的 001 Migration 保持不變；既有 Migration 冪等測試將已套用筆
 使用者最新指示將 Milestone 1 擴為：Go Module、HTTP Server、GET /healthz、SQLite Driver／FTS5 能力確認、knowledge 主表、版本化 Migration、Foreign Keys／WAL／Busy Timeout、slog、Graceful Shutdown、loopback 預設、單元／初始化整合測試及 README／AGENTS 更新。
 
 此指示優先於第 9 節原有 M1／M2 邊界；原 M2 的初始化與 Migration 工作移入 M1，Repository CRUD 與正式 FTS 索引仍留後續。M1 不含 Knowledge CRUD、搜尋 API、MCP、Embedding、Web UI 或完整 Token 系統。原先待決策不因此全部轉為已確認。
+
+### Milestone 3 Issue #1 決策與實作契約
+
+- [x] 使用 trigram tokenizer；接受全文查詢至少 3 Unicode 字元的限制，1–2 字元回 422；兩字中文搜尋不支援。
+- [x] FTS5 external-content index 索引 title/content，trigger 同步新增與文字更新；migration 對既有資料 rebuild。
+- [x] 搜尋詞安全轉成 quoted phrase，以 AND 合併；不接受裸 FTS 運算式；最多 8 詞、256 Unicode 字元。
+- [x] 搜尋只回 ID/title/summary/status/source，BM25 排序，最多 100 筆；預設 confirmed，可指定其他合法狀態。
+- [x] 封存記錄保留索引但由主表 archived_at 篩除；project/module/type/scope/status 僅為分類過濾，不構成授權隔離。
 
 目前狀態：M1 的 build／test／vet／race 與實際執行檔啟停驗證通過，停止等待人工 Code Review，不執行 M2。
 

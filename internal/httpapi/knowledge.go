@@ -79,6 +79,72 @@ func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, lo
 		return failure(err)
 	}
 	isCollection := r.URL.Path == knowledgePath
+	if r.URL.Path == knowledgePath+"/search" {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			return failure(&httpError{405, "method_not_allowed", "Method not allowed."})
+		}
+		fields, err := readObject(w, r)
+		if err != nil {
+			return failure(err)
+		}
+		f := knowledge.Filter{Limit: 20, Status: "confirmed"}
+		var query string
+		for name, raw := range fields {
+			var value string
+			switch name {
+			case "query":
+				if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+					return failure(&httpError{422, "validation_failed", "query must be a string."})
+				}
+				if err := json.Unmarshal(raw, &query); err != nil {
+					return failure(&httpError{422, "validation_failed", "query must be a string."})
+				}
+			case "project", "module", "type", "scope", "status":
+				if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+					return failure(&httpError{422, "validation_failed", "Search filters must be non-empty strings."})
+				}
+				if err := json.Unmarshal(raw, &value); err != nil {
+					return failure(&httpError{422, "validation_failed", "Search filters must be strings."})
+				}
+				if strings.TrimSpace(value) == "" {
+					return failure(&httpError{422, "validation_failed", "Search filters must be non-empty strings."})
+				}
+				switch name {
+				case "project":
+					f.Project = value
+				case "module":
+					f.Module = value
+				case "type":
+					f.Type = value
+				case "scope":
+					f.Scope = value
+				case "status":
+					f.Status = value
+				}
+			case "limit", "offset":
+				if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+					return failure(&httpError{422, "validation_failed", "limit and offset must be integers."})
+				}
+				var n int
+				if err := json.Unmarshal(raw, &n); err != nil {
+					return failure(&httpError{422, "validation_failed", "limit and offset must be integers."})
+				}
+				if name == "limit" {
+					f.Limit = n
+				} else {
+					f.Offset = n
+				}
+			default:
+				return failure(&httpError{422, "validation_failed", "Unknown search field."})
+			}
+		}
+		page, err := svc.Search(ctx, query, f)
+		if err != nil {
+			return failure(err)
+		}
+		return success(200, map[string]any{"data": page.Items, "pagination": map[string]any{"limit": f.Limit, "offset": f.Offset, "has_more": page.HasMore}})
+	}
 	id := strings.TrimPrefix(r.URL.Path, knowledgePath+"/")
 	if !isCollection && (id == "" || strings.Contains(id, "/")) {
 		return failure(&httpError{404, "not_found", "Resource not found."})
