@@ -12,6 +12,7 @@ import (
 
 	"github.com/chiisen/agent-knowledge-hub/internal/config"
 	"github.com/chiisen/agent-knowledge-hub/internal/httpapi"
+	"github.com/chiisen/agent-knowledge-hub/internal/knowledge"
 	"github.com/chiisen/agent-knowledge-hub/internal/sqlite"
 )
 
@@ -60,5 +61,6 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (err error) {
 		return fmt.Errorf("listen HTTP on %s: %w", cfg.Addr, err)
 	}
 	logger.Info("HTTP server started", "addr", ln.Addr().String())
-	return httpapi.Serve(ctx, ln, httpapi.NewHandler(db, logger), logger, 10*time.Second)
+	service := knowledge.NewService(sqlite.NewRepository(db))
+	return httpapi.Serve(ctx, ln, httpapi.NewKnowledgeHandler(db, service, logger), logger, 10*time.Second)
 }

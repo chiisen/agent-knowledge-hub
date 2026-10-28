@@ -1,6 +1,6 @@
 # agent-knowledge-hub 專案規劃、架構設計與實作計畫
 
-> 狀態：Milestone 1 已依使用者最新範圍完成本機實作與驗證，等待 Code Review；其餘規劃仍待確認。
+> 狀態：Milestone 1 已提交為 44526f9；Milestone 2 已完成本機實作與驗證，等待人工 Review，其餘規劃仍待確認。
 > 整理日期：2026-10-28。
 > 來源：本次對話的專案需求與前一輪架構建議。
 > 文件建立不代表架構選項已獲確認。第 10 節列出必須確認的需求。
@@ -8,6 +8,23 @@
 > AI Agent 執行時使用適用的 executing-plans 流程；本文件不授權自動 commit、push 或開始下一階段。
 
 ### 最新執行範圍覆蓋（2026-10-28）
+
+M2 最新授權優先於下方舊階段草案：本階段完成五個 Knowledge CRUD REST API、Service／Repository 分層、驗證、篩選／分頁、Context／Request ID、新 Migration 與 API 文件；不加入搜尋、Embedding、MCP 或其他無關重構。
+
+使用者已確認三項：1. version／ETag，PATCH／DELETE 要求 If-Match；2. 本機呼叫端可信，可設定三種 status，confirmed 內容／來源修改降 draft 並另次確認；3. 列表預設 confirmed，DELETE 採 archived_at 封存，隱藏 GET／PATCH／列表，重複 DELETE 回 204，無恢復功能。
+
+M2 執行順序：
+
+- [x] 確認 M1 commit、乾淨工作目錄與全套基線測試。
+- [x] 先寫驗證／狀態與 SQLite CRUD／競爭／升級測試，再實作 Service、Repository 與 002 Migration。
+- [x] 先寫 HTTP 整合測試，再串接 CRUD、JSON、ETag 與錯誤／日誌處理。
+- [x] 完成取消、分頁、封存與錯誤保密檢查；build／test／vet／race 通過。
+- [x] 更新 API／架構文件與任務狀態；實際執行檔 CRUD／關機驗證通過。
+- [ ] 使用者人工 Review；目前停止，不 Commit／Push，不進入下一階段。
+
+M1 的 001 Migration 保持不變；既有 Migration 冪等測試將已套用筆數由 1 改為 2，以對應新增版本，不刪除資料保留、約束或回滾斷言。其他 M1 測試保留。
+
+以下為 M1 與原始規劃的歷史說明，已確認的最小 Schema 以後續 Migration 演進，不重新套用舊的擴充草案。
 
 使用者最新指示將 Milestone 1 擴為：Go Module、HTTP Server、GET /healthz、SQLite Driver／FTS5 能力確認、knowledge 主表、版本化 Migration、Foreign Keys／WAL／Busy Timeout、slog、Graceful Shutdown、loopback 預設、單元／初始化整合測試及 README／AGENTS 更新。
 

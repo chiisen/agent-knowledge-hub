@@ -1,6 +1,24 @@
-# 架構與 Milestone 1 邊界
+# 架構與 Milestone 邊界
 
-狀態：Milestone 1 本機實作與驗證完成，等待人工 Code Review；使用者已確認最小 Schema。
+狀態：Milestone 1 已提交為 44526f9；Milestone 2 本機實作與驗證完成，等待人工 Review。
+
+## Milestone 2
+
+- 依使用者最新授權，本階段同時串接 HTTP Handler → Knowledge Service → Repository → SQLite，不受舊草案將 Service／API 分至 M3／M4 的劃分限制。
+- internal/knowledge：資料型別、Repository 小介面、UUID／輸入驗證、confirmed 變更降 draft、版本與封存規則。
+- internal/sqlite/repository.go：參數化 CRUD、精確篩選、LIMIT／OFFSET、條件式 UPDATE／RETURNING；不回傳 SQLite 型別給 Service。
+- internal/httpapi/knowledge.go：JSON／Content-Type／大小限制、ETag、錯誤映射與安全日誌；保留原 health-only NewHandler，新增 NewKnowledgeHandler 供入口組裝。
+- 002_knowledge_crud.sql 新增 version、archived_at 與未封存資料索引；不改寫 001。舊版資料預設 version=1、archived_at=NULL。
+- 單筆 SQL 寫入原子提交，UPDATE／封存附版本條件，避免 Service 讀取後遭並行更新覆蓋；不在讀取至寫入間持有長交易。
+- 確認權限依使用者決策採可信本機呼叫端，不加入 Token／ACL。confirmed 不代表已驗證來源。
+- DELETE 封存以保存來源並區分 deprecated；一般 GET／PATCH／列表看不到，重複 DELETE 可用格式有效的舊 ETag 回 204。
+- 預設列表只回 confirmed；每頁最多 100 筆。篩選是資料分類，不是專案授權隔離。
+- Context 由 HTTP（5 秒 deadline）傳遞至 Service 和 SQL；所有 I/O 錯誤保留原因。5xx 日誌含 Request ID、method、error_kind 與 SQLite code，不記錄可能含敏感 trigger 文字的 driver 原始錯誤。
+- 不建立正式 FTS 索引、搜尋 API、Embedding 或 MCP；既有連線與 HTTP 生命週期設定沿用 M1。
+
+M2 驗證：go build ./...、go test -count=1 ./...、go vet ./...、go test -race -count=1 ./... 均通過（macOS arm64）。API 整合測試使用實體 SQLite，也有實際 loopback HTTP 測試；另以正式入口執行檔驗證 CRUD、412、封存及 SIGTERM exit 0。既有 M1 測試保留，只將已套用 Migration 筆數由 1 同步為 2；001 原文未變。Windows／Linux 未實機驗證。
+
+以下為 M1 基礎設計紀錄；其中「沒有知識 API」描述的是 M1 當時的範圍。當前 API 以 [api.md](api.md) 為準。
 
 ## 範圍
 

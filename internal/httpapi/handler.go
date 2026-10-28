@@ -1,4 +1,4 @@
-// Package httpapi provides the HTTP boundary. No knowledge APIs exist yet.
+// Package httpapi provides the JSON HTTP boundary.
 package httpapi
 
 import (
@@ -8,10 +8,21 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/chiisen/agent-knowledge-hub/internal/knowledge"
 )
 
 func NewHandler(db *sql.DB, logger *slog.Logger) http.Handler {
+	return newHandler(db, nil, logger)
+}
+
+func NewKnowledgeHandler(db *sql.DB, service *knowledge.Service, logger *slog.Logger) http.Handler {
+	return newHandler(db, service, logger)
+}
+
+func newHandler(db *sql.DB, service *knowledge.Service, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
 		id := rand.Text()
@@ -31,6 +42,14 @@ func NewHandler(db *sql.DB, logger *slog.Logger) http.Handler {
 			}}); err != nil {
 				logger.ErrorContext(r.Context(), "write error response", "request_id", id, "error", err)
 			}
+		}
+		if service != nil && (r.URL.Path == knowledgePath || strings.HasPrefix(r.URL.Path, knowledgePath+"/")) {
+			route = knowledgePath
+			if r.URL.Path != knowledgePath {
+				route += "/{id}"
+			}
+			status = serveKnowledge(w, r, id, logger, service, fail)
+			return
 		}
 		if r.URL.Path != "/healthz" {
 			fail(http.StatusNotFound, "not_found", "Resource not found.")
