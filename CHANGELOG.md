@@ -6,6 +6,8 @@
 
 ### 新增
 
+- Issue #5：API Token 綁定 project 白名單。列表與搜尋只回允許的 project；單筆越權回 404，新增或把 project 改到白名單外回 403。空 project 沒有 Token 可以讀寫。
+
 - Issue #4：本機 CLI 核發、列出、撤銷與輪替 API Token。伺服器只存 SHA-256；Knowledge CRUD 與搜尋要求 Bearer Token，`/healthz` 免認證。未設定到期的 Token 持續有效直到撤銷。
 
 - Issue #2／Milestone 4：SQLite 有界四連線池、連線 PRAGMA 驗證、Busy/Locked 回應與 WAL checkpoint；HTTP panic recovery、1 MiB 回應上限及併發／容量 benchmarks。

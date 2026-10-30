@@ -2,7 +2,7 @@
 
 基底位址預設 `http://127.0.0.1:8080`。只允許 literal loopback IP。`/healthz` 免認證。其餘 Knowledge API 必須帶 `Authorization: Bearer <token>`。缺少、格式錯誤、未知、已撤銷或已過期的 Token 都回 401 `unauthorized`，回應與日誌不區分原因，也不記錄 Token 或 Authorization。
 
-Token 由本機 CLI 核發、撤銷與輪替，不提供管理 HTTP。明文只在核發或輪替時輸出一次。有效 Token 目前可存取全部 project；Project 白名單尚未實作。禁止將本服務轉送公開。
+Token 由本機 CLI 核發、撤銷與輪替，不提供管理 HTTP。明文只在核發或輪替時輸出一次。每把 Token 綁定一組 project 白名單，比對的是知識的 `project` 欄位，不看 `scope`。空 project、null，以及不在白名單內的 project 都拒絕。列表與搜尋只回白名單內的資料；指定白名單外的 project 篩選得到空結果。單筆 GET、PATCH、封存若現有資料不在白名單，回 404，與不存在相同。新增到不允許的 project，或把允許的資料改到白名單外，回 403 且不寫入。禁止將本服務轉送公開。
 
 ## 共通格式
 
@@ -133,6 +133,7 @@ PATCH／DELETE 先檢查 If-Match 格式，再讀取資料；因此缺少 If-Mat
 | --- | --- |
 | 400 | invalid_request、invalid_uuid：語法、UUID、query、ETag 格式 |
 | 401 | unauthorized：Knowledge API 缺少或拒絕 Bearer Token；`/healthz` 不檢查 |
+| 403 | forbidden：新增或改寫的 project 不在 Token 白名單 |
 | 404 | not_found：不存在或已封存 |
 | 405 | method_not_allowed，附 Allow |
 | 412 | version_conflict |

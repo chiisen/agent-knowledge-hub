@@ -15,6 +15,7 @@ import (
 
 	"github.com/chiisen/agent-knowledge-hub/internal/knowledge"
 	"github.com/chiisen/agent-knowledge-hub/internal/sqlite"
+	"github.com/chiisen/agent-knowledge-hub/internal/token"
 	_ "modernc.org/sqlite"
 )
 
@@ -88,7 +89,9 @@ func TestKnowledgeAPIRejectsOversizedJSONResponse(t *testing.T) {
 
 type allowAuthenticator struct{}
 
-func (allowAuthenticator) Authenticate(context.Context, string, time.Time) error { return nil }
+func (allowAuthenticator) Authenticate(context.Context, string, time.Time) (token.Grant, error) {
+	return token.Grant{}, nil
+}
 
 func BenchmarkHealthHandler(b *testing.B) {
 	db, err := sql.Open("sqlite", ":memory:")

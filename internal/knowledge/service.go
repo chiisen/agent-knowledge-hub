@@ -39,6 +39,9 @@ func (s *Service) Create(ctx context.Context, input Create) (Knowledge, error) {
 	if err := validate(k); err != nil {
 		return Knowledge{}, err
 	}
+	if err := authorizeProject(ctx, k.Project); err != nil {
+		return Knowledge{}, err
+	}
 	return s.repo.Create(ctx, k)
 }
 
@@ -54,7 +57,7 @@ func (s *Service) Get(ctx context.Context, id string) (Knowledge, error) {
 	if err != nil {
 		return Knowledge{}, err
 	}
-	if k.ArchivedAt != nil {
+	if k.ArchivedAt != nil || !projectVisible(ctx, k.Project) {
 		return Knowledge{}, ErrNotFound
 	}
 	return k, nil
@@ -80,6 +83,10 @@ func (s *Service) List(ctx context.Context, f Filter) (Page, error) {
 		if !utf8.ValidString(v) || utf8.RuneCountInString(v) > 128 {
 			return Page{}, fmt.Errorf("%w: filter exceeds 128 characters", ErrInvalid)
 		}
+	}
+	f, empty := restrictFilter(ctx, f)
+	if empty {
+		return Page{Items: []Knowledge{}}, nil
 	}
 	return s.repo.List(ctx, f)
 }
@@ -127,6 +134,10 @@ func (s *Service) Search(ctx context.Context, query string, f Filter) (SearchPag
 			return SearchPage{}, fmt.Errorf("%w: filter exceeds 128 characters", ErrInvalid)
 		}
 	}
+	f, empty := restrictFilter(ctx, f)
+	if empty {
+		return SearchPage{Items: []SearchResult{}}, nil
+	}
 	return s.repo.Search(ctx, normalized, f)
 }
 
@@ -148,6 +159,9 @@ func (s *Service) Update(ctx context.Context, id string, version int64, p Patch)
 	if err != nil {
 		return Knowledge{}, err
 	}
+	if err := authorizeProject(ctx, updated.Project); err != nil {
+		return Knowledge{}, err
+	}
 	updated.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
 	return s.repo.Update(ctx, updated, version)
 }
@@ -166,6 +180,9 @@ func (s *Service) Archive(ctx context.Context, id string, version int64) error {
 	k, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return err
+	}
+	if !projectVisible(ctx, k.Project) {
+		return ErrNotFound
 	}
 	// Valid repeated DELETE is idempotent even with the pre-archive ETag.
 	if k.ArchivedAt != nil {
@@ -221,6 +238,64 @@ func equalNullable(a, b *string) bool {
 	}
 	return *a == *b
 }
+
+type grantKey struct{}
+
+// Grant limits knowledge access to an explicit project whitelist.
+type Grant struct {
+	Projects []string
+	Enforce  bool
+}
+
+func WithGrant(ctx context.Context, grant Grant) context.Context {
+	return context.WithValue(ctx, grantKey{}, grant)
+}
+
+func grantFrom(ctx context.Context) Grant {
+	grant, _ := ctx.Value(grantKey{}).(Grant)
+	return grant
+}
+
+func projectVisible(ctx context.Context, project *string) bool {
+	grant := grantFrom(ctx)
+	if !grant.Enforce {
+		return true
+	}
+	return projectAllowed(grant.Projects, project)
+}
+
+func authorizeProject(ctx context.Context, project *string) error {
+	if projectVisible(ctx, project) {
+		return nil
+	}
+	return ErrForbidden
+}
+
+func projectAllowed(projects []string, project *string) bool {
+	if project == nil || strings.TrimSpace(*project) == "" {
+		return false
+	}
+	for _, allowed := range projects {
+		if allowed == *project {
+			return true
+		}
+	}
+	return false
+}
+
+func restrictFilter(ctx context.Context, f Filter) (Filter, bool) {
+	grant := grantFrom(ctx)
+	if !grant.Enforce {
+		return f, false
+	}
+	if f.Project != "" && !projectAllowed(grant.Projects, &f.Project) {
+		return f, true
+	}
+	f.RestrictProjects = true
+	f.Projects = grant.Projects
+	return f, false
+}
+
 func validStatus(s string) bool { return s == "draft" || s == "confirmed" || s == "deprecated" }
 func validate(k Knowledge) error {
 	for _, field := range []struct {

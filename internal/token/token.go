@@ -9,9 +9,16 @@ import (
 	"time"
 )
 
+// Grant is the project whitelist carried by one valid token.
+// Enforce false is only for callers that intentionally skip project checks.
+type Grant struct {
+	Projects []string
+	Enforce  bool
+}
+
 // Authenticator checks an Authorization header value.
 type Authenticator interface {
-	Authenticate(ctx context.Context, authorization string, now time.Time) error
+	Authenticate(ctx context.Context, authorization string, now time.Time) (Grant, error)
 }
 
 // ErrUnauthenticated is returned for a missing, unknown, revoked, or expired credential.
@@ -22,6 +29,7 @@ var ErrUnauthenticated = errors.New("unauthenticated")
 type Credential struct {
 	ID        string
 	Name      string
+	Projects  []string
 	CreatedAt time.Time
 	ExpiresAt *time.Time
 	RevokedAt *time.Time

@@ -16,7 +16,7 @@ import (
 func TestTokenCLIIssueListRotateRevoke(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "knowledge.db")
 	var issued bytes.Buffer
-	if err := runToken(context.Background(), []string{"issue", "-db", dbPath, "-name", "laptop"}, &issued); err != nil {
+	if err := runToken(context.Background(), []string{"issue", "-db", dbPath, "-name", "laptop", "-project", "alpha", "-project", "beta"}, &issued); err != nil {
 		t.Fatal(err)
 	}
 	var first struct {
@@ -36,7 +36,7 @@ func TestTokenCLIIssueListRotateRevoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := sqlite.NewTokenStore(db).Authenticate(ctx, "Bearer "+first.Token, time.Now()); err != nil {
+	if _, err := sqlite.NewTokenStore(db).Authenticate(ctx, "Bearer "+first.Token, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	var listed bytes.Buffer
@@ -59,7 +59,7 @@ func TestTokenCLIIssueListRotateRevoke(t *testing.T) {
 	if second.Token == "" || second.Token == first.Token {
 		t.Fatalf("rotated = %s", rotated.String())
 	}
-	if err := sqlite.NewTokenStore(db).Authenticate(ctx, "Bearer "+first.Token, time.Now()); err != token.ErrUnauthenticated {
+	if _, err := sqlite.NewTokenStore(db).Authenticate(ctx, "Bearer "+first.Token, time.Now()); err != token.ErrUnauthenticated {
 		t.Fatal("old token still valid after rotate")
 	}
 	if err := runToken(ctx, []string{"revoke", "-db", dbPath, "-id", first.ID}, &bytes.Buffer{}); err == nil {

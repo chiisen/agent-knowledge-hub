@@ -12,6 +12,7 @@ var (
 	ErrInvalidID = errors.New("invalid UUID")
 	ErrNotFound  = errors.New("knowledge not found")
 	ErrConflict  = errors.New("knowledge version conflict")
+	ErrForbidden = errors.New("project is not allowed")
 )
 
 type Knowledge struct {
@@ -55,6 +56,9 @@ type Patch struct {
 type Filter struct {
 	Project, Module, Type, Scope, Status string
 	Limit, Offset                        int
+	// Projects and RestrictProjects come from the authenticated grant, never from the query string.
+	Projects         []string
+	RestrictProjects bool
 }
 
 type Page struct {

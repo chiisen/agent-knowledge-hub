@@ -2,7 +2,7 @@
 
 輕量、可自行部署的 AI Agent 長期知識 API Server。使用 Go、net/http 與 SQLite，不使用 Docker 或大型 Framework。
 
-Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、Milestone 3 新增 FTS5 全文搜尋；Issue #2／Milestone 4 完成 HTTP／SQLite 併發與資源強化。Issue #4 加入 API Token。MCP、Embedding、Web UI 與 Project 白名單尚未實作。完整契約見 [docs/api.md](docs/api.md)。
+Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、Milestone 3 新增 FTS5 全文搜尋；Issue #2／Milestone 4 完成 HTTP／SQLite 併發與資源強化。Issue #4 加入 API Token，Issue #5 加入 Project 白名單。MCP、Embedding 與 Web UI 尚未實作。完整契約見 [docs/api.md](docs/api.md)。
 
 ## 開發環境
 
@@ -30,12 +30,14 @@ curl http://127.0.0.1:8080/healthz
 - API Request 最長處理 5 秒，Request／Response body 分別限制 128 KiB／1 MiB；SQLite 使用最多 4 個連線、每連線 busy_timeout 2 秒。
 - Graceful Shutdown 排空請求後執行 WAL TRUNCATE checkpoint，再關閉資料庫；checkpoint 期限為 5 秒。
 - `/healthz` 免認證。Knowledge CRUD 與搜尋必須帶 `Authorization: Bearer <token>`；沒有任何 Token 時服務仍可啟動，這些 API 回 401。
-- Token 以 CLI 核發。伺服器只保存 SHA-256，明文只出現在核發或輪替的 stdout JSON，不寫入日誌。未帶 `-ttl` 時不過期，直到撤銷。Project 白名單尚未實作，持有有效 Token 的本機呼叫端可讀寫全部知識。不可將服務轉送公開。
+- Token 以 CLI 核發。伺服器只保存 SHA-256，明文只出現在核發或輪替的 stdout JSON，不寫入日誌。未帶 `-ttl` 時不過期，直到撤銷。
+- 每把 Token 至少要有一個 `-project`。只有 `project` 與白名單完全相同的知識可以讀寫；`project` 為空、null，或只靠 `scope=personal`，一律拒絕。列表與搜尋只回白名單內的資料。單筆越權回 404，新增或改到白名單外回 403。不可將服務轉送公開。
+- 在 Issue #5 之前核發、沒有 project 列的 Token 會通過認證，但無法讀寫任何知識。請重新 `issue` 或 `rotate` 並帶上 `-project`。
 
 ```sh
-go run ./cmd/knowledge-hub token issue -db data/knowledge.db -name laptop
+go run ./cmd/knowledge-hub token issue -db data/knowledge.db -name laptop -project agent-knowledge-hub
 go run ./cmd/knowledge-hub token list -db data/knowledge.db
-go run ./cmd/knowledge-hub token rotate -db data/knowledge.db -id <UUID> -ttl 24h
+go run ./cmd/knowledge-hub token rotate -db data/knowledge.db -id <UUID> -project agent-knowledge-hub -ttl 24h
 go run ./cmd/knowledge-hub token revoke -db data/knowledge.db -id <UUID>
 ```
 

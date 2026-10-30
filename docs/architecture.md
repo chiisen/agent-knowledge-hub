@@ -1,6 +1,12 @@
 # 架構與 Milestone 邊界
 
-狀態：Milestone 1–4 已實作。Issue #4 API Token 認證已實作，等待 Review。Project 白名單（Issue #5）尚未開始。
+狀態：Milestone 1–4 與 Issue #4、#5 已實作。Issue #5 Project 白名單等待 Review。
+
+## Issue #5：Project 白名單
+
+- `005_token_projects.sql` 以 token id 與 project 名稱組成白名單。核發至少一筆；`rotate` 未帶 `-project` 時沿用舊名單，有帶則整組替換。
+- 授權在 Service 執行。列表與搜尋把白名單放進參數化 `IN` 條件，不靠呼叫端的 query 過濾。`project` 為 null 或空白時沒有任何 Token 可以讀寫。
+- 單筆讀取、更新、封存若現有 project 不在白名單，回與不存在相同的 404。新增或把 project 改到白名單外回 403，且不寫入。
 
 ## Issue #4：API Token
 

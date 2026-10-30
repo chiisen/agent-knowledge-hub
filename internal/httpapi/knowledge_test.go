@@ -34,6 +34,12 @@ func seedTestToken(t testing.TB, db *sql.DB) {
 		"11111111-1111-4111-8111-111111111111", "test", hex.EncodeToString(sum[:]), time.Now().UnixMilli()); err != nil {
 		t.Fatal(err)
 	}
+	for _, project := range []string{"alpha", "beta", "gamma"} {
+		if _, err := db.ExecContext(context.Background(), `INSERT INTO api_token_projects(token_id, project) VALUES (?, ?)`,
+			"11111111-1111-4111-8111-111111111111", project); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func authorize(r *http.Request) { r.Header.Set("Authorization", "Bearer "+testToken) }

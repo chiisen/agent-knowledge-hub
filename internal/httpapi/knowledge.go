@@ -49,6 +49,8 @@ func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, lo
 			status, code, message = 422, "validation_failed", err.Error()
 		case errors.Is(err, knowledge.ErrNotFound):
 			status, code, message = 404, "not_found", "Knowledge not found."
+		case errors.Is(err, knowledge.ErrForbidden):
+			status, code, message = 403, "forbidden", "Project is not allowed."
 		case errors.Is(err, knowledge.ErrConflict):
 			status, code, message = 412, "version_conflict", "Knowledge changed; read its current ETag."
 		case errors.Is(err, context.Canceled):
@@ -84,9 +86,12 @@ func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, lo
 	if auth == nil {
 		return failure(token.ErrUnauthenticated)
 	}
-	if err := auth.Authenticate(ctx, r.Header.Get("Authorization"), time.Now()); err != nil {
+	grant, err := auth.Authenticate(ctx, r.Header.Get("Authorization"), time.Now())
+	if err != nil {
 		return failure(err)
 	}
+	ctx = knowledge.WithGrant(ctx, knowledge.Grant{Projects: grant.Projects, Enforce: grant.Enforce})
+	r = r.WithContext(ctx)
 	isCollection := r.URL.Path == knowledgePath
 	if r.URL.Path == knowledgePath+"/search" {
 		if r.Method != http.MethodPost {

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/chiisen/agent-knowledge-hub/internal/sqlite"
@@ -27,6 +28,8 @@ func runToken(ctx context.Context, args []string, stdout io.Writer) error {
 	name := fs.String("name", "", "token name")
 	id := fs.String("id", "", "token id")
 	ttl := fs.Duration("ttl", 0, "optional lifetime; zero means no expiry")
+	var projects projectFlags
+	fs.Var(&projects, "project", "allowed project name; repeat for more than one")
 	if err := fs.Parse(args[1:]); err != nil {
 		return fmt.Errorf("parse token command: %w", err)
 	}
@@ -47,13 +50,13 @@ func runToken(ctx context.Context, args []string, stdout io.Writer) error {
 	now := time.Now()
 	switch args[0] {
 	case "issue":
-		issued, err := store.Issue(startup, *name, *ttl, now)
+		issued, err := store.Issue(startup, *name, projects, *ttl, now)
 		if err != nil {
 			return err
 		}
 		return writeIssued(stdout, issued)
 	case "rotate":
-		issued, err := store.Rotate(startup, *id, *ttl, now)
+		issued, err := store.Rotate(startup, *id, projects, *ttl, now)
 		if err != nil {
 			return err
 		}
@@ -82,6 +85,7 @@ func runToken(ctx context.Context, args []string, stdout io.Writer) error {
 type credentialView struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
+	Projects  []string   `json:"projects"`
 	CreatedAt time.Time  `json:"created_at"`
 	ExpiresAt *time.Time `json:"expires_at"`
 	RevokedAt *time.Time `json:"revoked_at"`
@@ -89,7 +93,19 @@ type credentialView struct {
 }
 
 func newCredentialView(item token.Credential) credentialView {
-	return credentialView{ID: item.ID, Name: item.Name, CreatedAt: item.CreatedAt, ExpiresAt: item.ExpiresAt, RevokedAt: item.RevokedAt}
+	projects := item.Projects
+	if projects == nil {
+		projects = []string{}
+	}
+	return credentialView{ID: item.ID, Name: item.Name, Projects: projects, CreatedAt: item.CreatedAt, ExpiresAt: item.ExpiresAt, RevokedAt: item.RevokedAt}
+}
+
+type projectFlags []string
+
+func (p *projectFlags) String() string { return strings.Join(*p, ",") }
+func (p *projectFlags) Set(value string) error {
+	*p = append(*p, value)
+	return nil
 }
 
 func writeIssued(stdout io.Writer, issued token.IssuedCredential) error {

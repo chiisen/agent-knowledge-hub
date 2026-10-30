@@ -21,11 +21,11 @@ func TestTokenIssueAuthenticateRevokeRotateAndExpiry(t *testing.T) {
 	}
 	store := NewTokenStore(db)
 	now := time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC)
-	issued, err := store.Issue(ctx, " laptop ", time.Hour, now)
+	issued, err := store.Issue(ctx, " laptop ", []string{" alpha ", "alpha"}, time.Hour, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if issued.Token == "" || issued.Name != "laptop" || issued.ExpiresAt == nil {
+	if issued.Token == "" || issued.Name != "laptop" || issued.ExpiresAt == nil || len(issued.Projects) != 1 || issued.Projects[0] != "alpha" {
 		t.Fatalf("issued = %+v", issued)
 	}
 	var stored string
@@ -35,44 +35,45 @@ func TestTokenIssueAuthenticateRevokeRotateAndExpiry(t *testing.T) {
 	if stored == issued.Token || stored != token.Hash(issued.Token) {
 		t.Fatal("plaintext was stored or hash mismatch")
 	}
-	if err := store.Authenticate(ctx, "Bearer "+issued.Token, now.Add(time.Minute)); err != nil {
+	if _, err := store.Authenticate(ctx, "Bearer "+issued.Token, now.Add(time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Authenticate(ctx, "Bearer "+issued.Token, now.Add(time.Hour)); err != token.ErrUnauthenticated {
+	if _, err := store.Authenticate(ctx, "Bearer "+issued.Token, now.Add(time.Hour)); err != token.ErrUnauthenticated {
 		t.Fatalf("expired token error = %v", err)
 	}
-	permanent, err := store.Issue(ctx, "permanent", 0, now)
+	permanent, err := store.Issue(ctx, "permanent", []string{"hub"}, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if permanent.ExpiresAt != nil {
 		t.Fatal("zero ttl stored an expiry")
 	}
-	if err := store.Authenticate(ctx, "Bearer "+permanent.Token, now.Add(365*24*time.Hour)); err != nil {
+	if _, err := store.Authenticate(ctx, "Bearer "+permanent.Token, now.Add(365*24*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	for _, header := range []string{"", "Bearer", "Token " + permanent.Token, "Bearer " + permanent.Token + " extra"} {
-		if err := store.Authenticate(ctx, header, now); err != token.ErrUnauthenticated {
+		if _, err := store.Authenticate(ctx, header, now); err != token.ErrUnauthenticated {
 			t.Fatalf("header %q error = %v", header, err)
 		}
 	}
-	rotated, err := store.Rotate(ctx, permanent.ID, 0, now.Add(time.Second))
+	rotated, err := store.Rotate(ctx, permanent.ID, nil, 0, now.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rotated.Token == permanent.Token || rotated.Name != "permanent" {
 		t.Fatalf("rotated = %+v", rotated)
 	}
-	if err := store.Authenticate(ctx, "Bearer "+permanent.Token, now.Add(time.Second)); err != token.ErrUnauthenticated {
+	if _, err := store.Authenticate(ctx, "Bearer "+permanent.Token, now.Add(time.Second)); err != token.ErrUnauthenticated {
 		t.Fatal("rotated token still authenticates")
 	}
-	if err := store.Authenticate(ctx, "Bearer "+rotated.Token, now.Add(time.Minute)); err != nil {
+	grant, err := store.Authenticate(ctx, "Bearer "+rotated.Token, now.Add(time.Minute))
+	if err != nil || len(grant.Projects) != 1 || grant.Projects[0] != "hub" {
 		t.Fatal(err)
 	}
 	if err := store.Revoke(ctx, rotated.ID, now.Add(2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Authenticate(ctx, "Bearer "+rotated.Token, now.Add(2*time.Second)); err != token.ErrUnauthenticated {
+	if _, err := store.Authenticate(ctx, "Bearer "+rotated.Token, now.Add(2*time.Second)); err != token.ErrUnauthenticated {
 		t.Fatal("revoked token still authenticates")
 	}
 	if err := store.Revoke(ctx, rotated.ID, now); err == nil {

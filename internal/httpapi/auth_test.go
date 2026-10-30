@@ -60,11 +60,11 @@ func TestRevokedAndExpiredTokensAreRejected(t *testing.T) {
 	}
 	store := sqlite.NewTokenStore(db)
 	now := time.Now().Add(-2 * time.Hour).UTC()
-	expired, err := store.Issue(ctx, "expired", time.Minute, now)
+	expired, err := store.Issue(ctx, "expired", []string{"alpha"}, time.Minute, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	revoked, err := store.Issue(ctx, "revoked", 0, now)
+	revoked, err := store.Issue(ctx, "revoked", []string{"alpha"}, 0, now)
 	if err != nil {
 		t.Fatal(err)
 	}
