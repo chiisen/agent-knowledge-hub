@@ -1,11 +1,20 @@
 # agent-knowledge-hub 專案規劃、架構設計與實作計畫
 
-> 狀態：Milestone 1–3 已實作；Issue #2／Milestone 4 HTTP、SQLite 併發與資源強化已實作，等待人工 Review。
+> 狀態：Milestone 1–4 已實作。Issue #4 API Token 認證已實作，等待人工 Review。Issue #5 尚未開始。
 > 整理日期：2026-10-28。
 > 來源：本次對話的專案需求與前一輪架構建議。
 > 文件建立不代表架構選項已獲確認。第 10 節列出必須確認的需求。
 > 執行方式：依 Milestone 逐階段實作、測試及人工 Code Review；未經授權不得跨階段。
 > AI Agent 執行時使用適用的 executing-plans 流程；本文件不授權自動 commit、push 或開始下一階段。
+
+### 最新執行範圍覆蓋（Issue #4，2026-10-30）
+
+已確認：同一執行檔 CLI 管理 Token；零 Token 仍可啟動，Knowledge API 回 401；到期可選，預設不過期；`/healthz` 免認證。不含 Project 白名單。
+
+- [x] 004 Migration 保存 SHA-256；issue／list／revoke／rotate。
+- [x] CRUD 與搜尋要求 Bearer Token；缺少、錯誤、撤銷、過期與日誌不含 Token 均有測試。
+- [x] 更新 README、API、架構、CHANGELOG 與任務狀態。
+- [ ] 人工 Review。不 Commit、不 Push、不開始 Issue #5。
 
 ### 最新執行範圍覆蓋（Issue #2，2026-10-28）
 

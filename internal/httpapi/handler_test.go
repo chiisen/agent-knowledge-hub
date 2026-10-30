@@ -41,7 +41,7 @@ func (panicRepository) Archive(context.Context, string, int64, time.Time) error 
 
 func TestKnowledgeHandlerRecoversPanicWithoutLeakingDetails(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewKnowledgeHandler(nil, knowledge.NewService(panicRepository{}), slog.New(slog.NewJSONHandler(&logs, nil)))
+	h := NewKnowledgeHandler(nil, knowledge.NewService(panicRepository{}), allowAuthenticator{}, slog.New(slog.NewJSONHandler(&logs, nil)))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/knowledge", nil))
 	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), `"code":"internal_error"`) {
@@ -78,13 +78,17 @@ func (oversizedRepository) List(context.Context, knowledge.Filter) (knowledge.Pa
 
 func TestKnowledgeAPIRejectsOversizedJSONResponse(t *testing.T) {
 	service := knowledge.NewService(&oversizedRepository{sqlite.NewRepository(nil)})
-	h := NewKnowledgeHandler(nil, service, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := NewKnowledgeHandler(nil, service, allowAuthenticator{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/knowledge", nil))
 	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "response_too_large") {
 		t.Fatalf("oversized API response = %d %s", w.Code, w.Body.String())
 	}
 }
+
+type allowAuthenticator struct{}
+
+func (allowAuthenticator) Authenticate(context.Context, string, time.Time) error { return nil }
 
 func BenchmarkHealthHandler(b *testing.B) {
 	db, err := sql.Open("sqlite", ":memory:")

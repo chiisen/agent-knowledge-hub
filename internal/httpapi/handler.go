@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/chiisen/agent-knowledge-hub/internal/knowledge"
+	"github.com/chiisen/agent-knowledge-hub/internal/token"
 )
 
 const maxResponseBytes = 1 << 20
@@ -64,14 +65,14 @@ func (w *responseBuffer) commit(dst http.ResponseWriter, requestID string) {
 }
 
 func NewHandler(db *sql.DB, logger *slog.Logger) http.Handler {
-	return newHandler(db, nil, logger)
+	return newHandler(db, nil, nil, logger)
 }
 
-func NewKnowledgeHandler(db *sql.DB, service *knowledge.Service, logger *slog.Logger) http.Handler {
-	return newHandler(db, service, logger)
+func NewKnowledgeHandler(db *sql.DB, service *knowledge.Service, auth token.Authenticator, logger *slog.Logger) http.Handler {
+	return newHandler(db, service, auth, logger)
 }
 
-func newHandler(db *sql.DB, service *knowledge.Service, logger *slog.Logger) http.Handler {
+func newHandler(db *sql.DB, service *knowledge.Service, auth token.Authenticator, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dst := w
 		buffer := newResponseBuffer()
@@ -119,7 +120,7 @@ func newHandler(db *sql.DB, service *knowledge.Service, logger *slog.Logger) htt
 					route += "/{id}"
 				}
 			}
-			status = serveKnowledge(w, r, id, logger, service, fail)
+			status = serveKnowledge(w, r, id, logger, service, auth, fail)
 			return
 		}
 		if r.URL.Path != "/healthz" {

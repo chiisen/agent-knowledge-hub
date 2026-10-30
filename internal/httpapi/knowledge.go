@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/chiisen/agent-knowledge-hub/internal/knowledge"
+	"github.com/chiisen/agent-knowledge-hub/internal/token"
 )
 
 const knowledgePath = "/api/v1/knowledge"
@@ -29,7 +30,7 @@ type httpError struct {
 func (e *httpError) Error() string    { return e.message }
 func badRequest(message string) error { return &httpError{400, "invalid_request", message} }
 
-func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, logger *slog.Logger, svc *knowledge.Service, fail func(int, string, string)) int {
+func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, logger *slog.Logger, svc *knowledge.Service, auth token.Authenticator, fail func(int, string, string)) int {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	r = r.WithContext(ctx)
@@ -40,6 +41,8 @@ func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, lo
 		switch {
 		case errors.As(err, &he):
 			status, code, message = he.status, he.code, he.message
+		case errors.Is(err, token.ErrUnauthenticated):
+			status, code, message = 401, "unauthorized", "A valid bearer token is required."
 		case errors.Is(err, knowledge.ErrInvalidID):
 			status, code, message = 400, "invalid_uuid", "A canonical UUID is required."
 		case errors.Is(err, knowledge.ErrInvalid):
@@ -76,6 +79,12 @@ func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, lo
 		return status
 	}
 	if err := ctx.Err(); err != nil {
+		return failure(err)
+	}
+	if auth == nil {
+		return failure(token.ErrUnauthenticated)
+	}
+	if err := auth.Authenticate(ctx, r.Header.Get("Authorization"), time.Now()); err != nil {
 		return failure(err)
 	}
 	isCollection := r.URL.Path == knowledgePath

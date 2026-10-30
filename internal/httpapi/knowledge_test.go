@@ -3,7 +3,9 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +25,19 @@ import (
 	"github.com/google/uuid"
 )
 
+const testToken = "hidden-token"
+
+func seedTestToken(t testing.TB, db *sql.DB) {
+	t.Helper()
+	sum := sha256.Sum256([]byte(testToken))
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO api_tokens(id, name, token_hash, created_at) VALUES (?, ?, ?, ?)`,
+		"11111111-1111-4111-8111-111111111111", "test", hex.EncodeToString(sum[:]), time.Now().UnixMilli()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func authorize(r *http.Request) { r.Header.Set("Authorization", "Bearer "+testToken) }
+
 const collection = "/api/v1/knowledge"
 const createBody = `{"title":"title","content":"hidden-content","type":"decision","scope":"project","project":"alpha","module":"payments","source":"hidden-source"}`
 
@@ -36,8 +51,9 @@ func apiFixture(t *testing.T) (http.Handler, *bytes.Buffer) {
 	if err := sqlite.Migrate(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
+	seedTestToken(t, db)
 	var logs bytes.Buffer
-	return NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), slog.New(slog.NewJSONHandler(&logs, nil))), &logs
+	return NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), sqlite.NewTokenStore(db), slog.New(slog.NewJSONHandler(&logs, nil))), &logs
 }
 
 func TestHTTPConcurrentCreateAndUpdate(t *testing.T) {
@@ -62,6 +78,7 @@ func TestHTTPConcurrentCreateAndUpdate(t *testing.T) {
 				return
 			}
 			request.Header.Set("Content-Type", "application/json")
+			authorize(request)
 			response, err := client.Do(request)
 			if err != nil {
 				errCh <- err
@@ -105,6 +122,7 @@ func TestHTTPConcurrentCreateAndUpdate(t *testing.T) {
 			}
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("If-Match", `"1"`)
+			authorize(request)
 			response, err := client.Do(request)
 			if err == nil {
 				response.Body.Close()
@@ -133,7 +151,13 @@ func TestHTTPConcurrentCreateAndUpdate(t *testing.T) {
 		go func(i int, path string) {
 			defer wg.Done()
 			requestStarted := time.Now()
-			response, err := client.Get(server.URL + path)
+			request, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			authorize(request)
+			response, err := client.Do(request)
 			if err == nil {
 				response.Body.Close()
 				if response.StatusCode != http.StatusOK {
@@ -179,6 +203,7 @@ func TestHTTPBusyDatabaseReturns503(t *testing.T) {
 	if err := sqlite.Migrate(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
+	seedTestToken(t, db)
 	conn, err := db.Conn(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -188,10 +213,11 @@ func TestHTTPBusyDatabaseReturns503(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.ExecContext(context.Background(), "ROLLBACK")
-	h := NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), sqlite.NewTokenStore(db), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, collection, strings.NewReader(createBody))
 	r.Header.Set("Content-Type", "application/json")
+	authorize(r)
 	h.ServeHTTP(w, r)
 	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "database_busy") {
 		t.Fatalf("busy response = %d %s", w.Code, w.Body.String())
@@ -207,7 +233,7 @@ func (deadlineRepository) List(ctx context.Context, _ knowledge.Filter) (knowled
 
 func TestKnowledgeRequestDeadlineReturns503(t *testing.T) {
 	var logs bytes.Buffer
-	h := NewKnowledgeHandler(nil, knowledge.NewService(&deadlineRepository{sqlite.NewRepository(nil)}), slog.New(slog.NewJSONHandler(&logs, nil)))
+	h := NewKnowledgeHandler(nil, knowledge.NewService(&deadlineRepository{sqlite.NewRepository(nil)}), allowAuthenticator{}, slog.New(slog.NewJSONHandler(&logs, nil)))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, collection, nil))
 	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "request_timeout") {
@@ -224,17 +250,20 @@ func BenchmarkKnowledgeList(b *testing.B) {
 	if err := sqlite.Migrate(context.Background(), db); err != nil {
 		b.Fatal(err)
 	}
+	seedTestToken(b, db)
 	svc := knowledge.NewService(sqlite.NewRepository(db))
 	for i := 0; i < 100; i++ {
 		if _, err := svc.Create(context.Background(), knowledge.Create{Title: fmt.Sprintf("title-%d", i), Content: "benchmark content", Type: "decision", Scope: "project", Status: "confirmed", Source: "benchmark"}); err != nil {
 			b.Fatal(err)
 		}
 	}
-	h := NewKnowledgeHandler(db, svc, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := NewKnowledgeHandler(db, svc, sqlite.NewTokenStore(db), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, collection, nil))
+		request := httptest.NewRequest(http.MethodGet, collection, nil)
+		authorize(request)
+		h.ServeHTTP(httptest.NewRecorder(), request)
 	}
 }
 
@@ -242,7 +271,7 @@ func apiRequest(t *testing.T, h http.Handler, method, path, body, etag string, w
 	t.Helper()
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
-	r.Header.Set("Authorization", "Bearer hidden-token")
+	authorize(r)
 	if etag != "" {
 		r.Header.Set("If-Match", etag)
 	}
@@ -444,6 +473,7 @@ func TestKnowledgeAPIValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) { apiRequest(t, h, tc.method, tc.path, tc.body, tc.etag, tc.status) })
 	}
 	r := httptest.NewRequest("POST", collection, strings.NewReader(createBody))
+	authorize(r)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	if w.Code != 415 {
@@ -521,7 +551,13 @@ func TestKnowledgeAPILoopbackIntegration(t *testing.T) {
 	defer server.Close()
 	client := server.Client()
 	client.Timeout = 3 * time.Second
-	response, err := client.Post(server.URL+collection, "application/json", strings.NewReader(createBody))
+	post, err := http.NewRequest(http.MethodPost, server.URL+collection, strings.NewReader(createBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	post.Header.Set("Content-Type", "application/json")
+	authorize(post)
+	response, err := client.Do(post)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,6 +572,7 @@ func TestKnowledgeAPILoopbackIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Header.Set("If-Match", response.Header.Get("ETag"))
+	authorize(request)
 	response, err = client.Do(request)
 	if err != nil {
 		t.Fatal(err)
@@ -544,7 +581,12 @@ func TestKnowledgeAPILoopbackIntegration(t *testing.T) {
 	if response.StatusCode != 204 {
 		t.Fatalf("DELETE status=%d", response.StatusCode)
 	}
-	response, err = client.Get(server.URL + collection + "/" + body.Data.ID)
+	get, err := http.NewRequest(http.MethodGet, server.URL+collection+"/"+body.Data.ID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorize(get)
+	response, err = client.Do(get)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -563,8 +605,9 @@ func TestKnowledgeAPICancellationAndDatabaseErrors(t *testing.T) {
 	if err := sqlite.Migrate(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
+	seedTestToken(t, db)
 	var logs bytes.Buffer
-	h := NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), slog.New(slog.NewJSONHandler(&logs, nil)))
+	h := NewKnowledgeHandler(db, knowledge.NewService(sqlite.NewRepository(db)), sqlite.NewTokenStore(db), slog.New(slog.NewJSONHandler(&logs, nil)))
 	k := record(t, apiRequest(t, h, "POST", collection, createBody, "", 201))
 	for _, tc := range []struct{ method, path, body string }{
 		{"GET", collection, ""}, {"GET", collection + "/" + k.ID, ""}, {"POST", collection, createBody},
@@ -575,6 +618,7 @@ func TestKnowledgeAPICancellationAndDatabaseErrors(t *testing.T) {
 		r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)).WithContext(ctx)
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("If-Match", `"1"`)
+		authorize(r)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != 503 {
@@ -592,6 +636,7 @@ func TestKnowledgeAPICancellationAndDatabaseErrors(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	r := httptest.NewRequest("GET", collection, nil).WithContext(ctx)
+	authorize(r)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	for _, conn := range conns {

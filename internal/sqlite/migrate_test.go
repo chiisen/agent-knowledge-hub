@@ -54,7 +54,7 @@ func TestKnowledgeMigrationPreservesDataAcrossRestart(t *testing.T) {
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 3 {
+	if count != 4 {
 		t.Fatalf("migration history count = %d", count)
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO knowledge (id, title, content, type, scope, status, source, created_at, updated_at)

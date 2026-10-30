@@ -32,6 +32,9 @@ func execute(logger *slog.Logger) error {
 }
 
 func run(ctx context.Context, args []string, logger *slog.Logger) (err error) {
+	if len(args) > 0 && args[0] == "token" {
+		return runToken(ctx, args[1:], os.Stdout)
+	}
 	cfg, err := config.Parse(args)
 	if err != nil {
 		return err
@@ -63,7 +66,7 @@ func run(ctx context.Context, args []string, logger *slog.Logger) (err error) {
 	}
 	logger.Info("HTTP server started", "addr", ln.Addr().String())
 	service := knowledge.NewService(sqlite.NewRepository(db))
-	serveErr := httpapi.Serve(ctx, ln, httpapi.NewKnowledgeHandler(db, service, logger), logger, 10*time.Second)
+	serveErr := httpapi.Serve(ctx, ln, httpapi.NewKnowledgeHandler(db, service, sqlite.NewTokenStore(db), logger), logger, 10*time.Second)
 	checkpointCtx, cancelCheckpoint := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelCheckpoint()
 	if checkpointErr := sqlite.Checkpoint(checkpointCtx, db); checkpointErr != nil {

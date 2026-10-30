@@ -1,6 +1,8 @@
 # REST API：Milestone 3
 
-基底位址預設 `http://127.0.0.1:8080`。只允許 literal loopback IP，沒有 Token 驗證；同一主機上的呼叫端均視為可信，可修改與確認知識。禁止將本服務透過轉送／代理公開為無驗證 API。遠端存取與權限管理留待後續決策。
+基底位址預設 `http://127.0.0.1:8080`。只允許 literal loopback IP。`/healthz` 免認證。其餘 Knowledge API 必須帶 `Authorization: Bearer <token>`。缺少、格式錯誤、未知、已撤銷或已過期的 Token 都回 401 `unauthorized`，回應與日誌不區分原因，也不記錄 Token 或 Authorization。
+
+Token 由本機 CLI 核發、撤銷與輪替，不提供管理 HTTP。明文只在核發或輪替時輸出一次。有效 Token 目前可存取全部 project；Project 白名單尚未實作。禁止將本服務轉送公開。
 
 ## 共通格式
 
@@ -130,6 +132,7 @@ PATCH／DELETE 先檢查 If-Match 格式，再讀取資料；因此缺少 If-Mat
 | HTTP | code／用途 |
 | --- | --- |
 | 400 | invalid_request、invalid_uuid：語法、UUID、query、ETag 格式 |
+| 401 | unauthorized：Knowledge API 缺少或拒絕 Bearer Token；`/healthz` 不檢查 |
 | 404 | not_found：不存在或已封存 |
 | 405 | method_not_allowed，附 Allow |
 | 412 | version_conflict |
@@ -146,16 +149,20 @@ PATCH／DELETE 先檢查 If-Match 格式，再讀取資料；因此缺少 If-Mat
 
 ```sh
 curl -i http://127.0.0.1:8080/api/v1/knowledge \
+  -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
   -d '{"title":"交易規則","content":"交易必須短小","type":"convention","scope":"project","project":"agent-knowledge-hub","source":"人工紀錄"}'
 
-curl -i 'http://127.0.0.1:8080/api/v1/knowledge?status=draft'
+curl -i 'http://127.0.0.1:8080/api/v1/knowledge?status=draft' \
+  -H 'Authorization: Bearer <token>'
 
 curl -i -X PATCH 'http://127.0.0.1:8080/api/v1/knowledge/<UUID>' \
+  -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' -H 'If-Match: "1"' \
   -d '{"status":"confirmed"}'
 
 curl -i -X DELETE 'http://127.0.0.1:8080/api/v1/knowledge/<UUID>' \
+  -H 'Authorization: Bearer <token>' \
   -H 'If-Match: "2"'
 ```
 

@@ -1,6 +1,13 @@
 # 架構與 Milestone 邊界
 
-狀態：Milestone 1–3 已實作；Issue #2／Milestone 4 併發與資源強化已實作並待 Review。
+狀態：Milestone 1–4 已實作。Issue #4 API Token 認證已實作，等待 Review。Project 白名單（Issue #5）尚未開始。
+
+## Issue #4：API Token
+
+- `004_api_tokens.sql` 保存 token id、名稱、SHA-256、建立時間、可空到期與撤銷時間。不保存明文。
+- `knowledge-hub token issue|list|revoke|rotate` 使用同一資料庫檔。`-ttl` 省略或為 0 表示不過期。rotate 在同一交易撤銷舊 Token 並核發同名新 Token，明文只寫入 stdout。
+- Knowledge CRUD 與搜尋在業務處理前檢查 `Authorization: Bearer`。失敗一律 401 `unauthorized`。資料庫 busy 或請求取消仍沿用 503。`/healthz` 不檢查 Token。
+- 沒有 Token 時 HTTP 仍可啟動。本階段不限制 project，也不提供管理 API。
 
 ## Issue #2／Milestone 4：併發與資源強化
 
