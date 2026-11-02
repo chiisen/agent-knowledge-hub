@@ -29,9 +29,9 @@ func (s *TokenStore) Authenticate(ctx context.Context, authorization string, now
 	if err != nil {
 		return token.Grant{}, err
 	}
-	var id string
+	var id, name string
 	var expires, revoked sql.NullInt64
-	err = s.db.QueryRowContext(ctx, `SELECT id, expires_at, revoked_at FROM api_tokens WHERE token_hash = ?`, token.Hash(secret)).Scan(&id, &expires, &revoked)
+	err = s.db.QueryRowContext(ctx, `SELECT id, name, expires_at, revoked_at FROM api_tokens WHERE token_hash = ?`, token.Hash(secret)).Scan(&id, &name, &expires, &revoked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return token.Grant{}, token.ErrUnauthenticated
 	}
@@ -45,7 +45,7 @@ func (s *TokenStore) Authenticate(ctx context.Context, authorization string, now
 	if err != nil {
 		return token.Grant{}, err
 	}
-	return token.Grant{Projects: projects, Enforce: true}, nil
+	return token.Grant{Projects: projects, Enforce: true, Actor: name}, nil
 }
 
 // Issue creates a token. ttl <= 0 means the token does not expire.

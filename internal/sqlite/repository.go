@@ -17,15 +17,16 @@ func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
 
 var _ knowledge.Repository = (*Repository)(nil)
 
-const columns = "id,title,content,type,scope,project,module,status,source,created_at,updated_at,version,archived_at"
+const columns = "id,title,content,type,scope,project,module,status,source,created_at,updated_at,confirmed_by,confirmed_at,version,archived_at"
 
 type scanner interface{ Scan(...any) error }
 
 func scanKnowledge(row scanner) (knowledge.Knowledge, error) {
 	var k knowledge.Knowledge
 	var created, updated int64
-	var archived sql.NullInt64
-	if err := row.Scan(&k.ID, &k.Title, &k.Content, &k.Type, &k.Scope, &k.Project, &k.Module, &k.Status, &k.Source, &created, &updated, &k.Version, &archived); err != nil {
+	var confirmedBy sql.NullString
+	var confirmedAt, archived sql.NullInt64
+	if err := row.Scan(&k.ID, &k.Title, &k.Content, &k.Type, &k.Scope, &k.Project, &k.Module, &k.Status, &k.Source, &created, &updated, &confirmedBy, &confirmedAt, &k.Version, &archived); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return k, knowledge.ErrNotFound
 		}
@@ -33,6 +34,13 @@ func scanKnowledge(row scanner) (knowledge.Knowledge, error) {
 	}
 	k.CreatedAt = time.UnixMilli(created).UTC()
 	k.UpdatedAt = time.UnixMilli(updated).UTC()
+	if confirmedBy.Valid {
+		k.ConfirmedBy = &confirmedBy.String
+	}
+	if confirmedAt.Valid {
+		stamp := time.UnixMilli(confirmedAt.Int64).UTC()
+		k.ConfirmedAt = &stamp
+	}
 	if archived.Valid {
 		stamp := time.UnixMilli(archived.Int64).UTC()
 		k.ArchivedAt = &stamp
@@ -42,8 +50,8 @@ func scanKnowledge(row scanner) (knowledge.Knowledge, error) {
 }
 
 func (r *Repository) Create(ctx context.Context, k knowledge.Knowledge) (knowledge.Knowledge, error) {
-	row := r.db.QueryRowContext(ctx, `INSERT INTO knowledge(id,title,content,type,scope,project,module,status,source,created_at,updated_at)
-  VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING `+columns, k.ID, k.Title, k.Content, k.Type, k.Scope, k.Project, k.Module, k.Status, k.Source, k.CreatedAt.UnixMilli(), k.UpdatedAt.UnixMilli())
+	row := r.db.QueryRowContext(ctx, `INSERT INTO knowledge(id,title,content,type,scope,project,module,status,source,created_at,updated_at,confirmed_by,confirmed_at)
+  VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING `+columns, k.ID, k.Title, k.Content, k.Type, k.Scope, k.Project, k.Module, k.Status, k.Source, k.CreatedAt.UnixMilli(), k.UpdatedAt.UnixMilli(), k.ConfirmedBy, confirmedMillis(k.ConfirmedAt))
 	got, err := scanKnowledge(row)
 	if err != nil {
 		return got, fmt.Errorf("insert knowledge: %w", err)
@@ -131,6 +139,13 @@ WHERE knowledge_fts MATCH ? AND k.archived_at IS NULL`)
 	}
 	return page, nil
 }
+func confirmedMillis(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UnixMilli()
+}
+
 func appendProjectScope(query *strings.Builder, args []any, column string, f knowledge.Filter) []any {
 	if !f.RestrictProjects {
 		return args
@@ -152,8 +167,8 @@ func appendProjectScope(query *strings.Builder, args []any, column string, f kno
 }
 
 func (r *Repository) Update(ctx context.Context, k knowledge.Knowledge, version int64) (knowledge.Knowledge, error) {
-	got, err := scanKnowledge(r.db.QueryRowContext(ctx, `UPDATE knowledge SET title=?,content=?,type=?,scope=?,project=?,module=?,status=?,source=?,updated_at=?,version=version+1
-  WHERE id=? AND version=? AND archived_at IS NULL RETURNING `+columns, k.Title, k.Content, k.Type, k.Scope, k.Project, k.Module, k.Status, k.Source, k.UpdatedAt.UnixMilli(), k.ID, version))
+	got, err := scanKnowledge(r.db.QueryRowContext(ctx, `UPDATE knowledge SET title=?,content=?,type=?,scope=?,project=?,module=?,status=?,source=?,updated_at=?,confirmed_by=?,confirmed_at=?,version=version+1
+  WHERE id=? AND version=? AND archived_at IS NULL RETURNING `+columns, k.Title, k.Content, k.Type, k.Scope, k.Project, k.Module, k.Status, k.Source, k.UpdatedAt.UnixMilli(), k.ConfirmedBy, confirmedMillis(k.ConfirmedAt), k.ID, version))
 	if errors.Is(err, knowledge.ErrNotFound) {
 		return got, knowledge.ErrConflict
 	}

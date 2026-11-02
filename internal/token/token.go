@@ -14,6 +14,7 @@ import (
 type Grant struct {
 	Projects []string
 	Enforce  bool
+	Actor    string
 }
 
 // Authenticator checks an Authorization header value.

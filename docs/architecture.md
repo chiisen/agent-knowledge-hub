@@ -1,6 +1,12 @@
 # 架構與 Milestone 邊界
 
-狀態：Milestone 1–4 與 Issue #4、#5 已實作。Issue #5 Project 白名單等待 Review。
+狀態：Milestone 1–4 與 Issue #4、#5、#8 已實作。Issue #8 確認者等待 Review。
+
+## Issue #8：確認者
+
+- `006_knowledge_confirmation.sql` 新增 `confirmed_by`、`confirmed_at`。舊資料為 NULL。
+- 只有從 `draft` 或 `deprecated` 進入 `confirmed` 才寫入目前 Token 名稱與時間。重複確認不改寫；`deprecated` 保留；回到 `draft` 清空。
+- 單筆 GET 與列表回傳兩欄。搜尋不回。請求不能指定確認者。
 
 ## Issue #5：Project 白名單
 

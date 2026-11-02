@@ -90,7 +90,7 @@ func serveKnowledge(w http.ResponseWriter, r *http.Request, requestID string, lo
 	if err != nil {
 		return failure(err)
 	}
-	ctx = knowledge.WithGrant(ctx, knowledge.Grant{Projects: grant.Projects, Enforce: grant.Enforce})
+	ctx = knowledge.WithGrant(ctx, knowledge.Grant{Projects: grant.Projects, Enforce: grant.Enforce, Actor: grant.Actor})
 	r = r.WithContext(ctx)
 	isCollection := r.URL.Path == knowledgePath
 	if r.URL.Path == knowledgePath+"/search" {

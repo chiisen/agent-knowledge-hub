@@ -27,6 +27,8 @@ type Knowledge struct {
 	Source       string     `json:"source"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
+	ConfirmedBy  *string    `json:"confirmed_by"`
+	ConfirmedAt  *time.Time `json:"confirmed_at"`
 	Version      int64      `json:"version"`
 	ArchivedAt   *time.Time `json:"-"`
 	UsableAsRule bool       `json:"usable_as_rule"`

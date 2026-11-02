@@ -1,11 +1,20 @@
 # agent-knowledge-hub 專案規劃、架構設計與實作計畫
 
-> 狀態：Milestone 1–4 與 Issue #4、#5 已實作。Issue #5 Project 白名單等待人工 Review。
+> 狀態：Milestone 1–4 與 Issue #4、#5、#8 已實作。Issue #8 確認者等待人工 Review。
 > 整理日期：2026-10-28。
 > 來源：本次對話的專案需求與前一輪架構建議。
 > 文件建立不代表架構選項已獲確認。第 10 節列出必須確認的需求。
 > 執行方式：依 Milestone 逐階段實作、測試及人工 Code Review；未經授權不得跨階段。
 > AI Agent 執行時使用適用的 executing-plans 流程；本文件不授權自動 commit、push 或開始下一階段。
+
+### 最新執行範圍覆蓋（Issue #8，2026-10-30）
+
+已確認：只記確認者，不留修訂歷史。確認者是伺服器寫入的 Token 名稱。單筆與列表回傳；搜尋不回。
+
+- [x] 006 Migration 與進入 confirmed 時寫入、draft 清空、deprecated 保留、重複確認不變。
+- [x] 測試涵蓋 Token 改名後新確認使用新名稱，舊規則不回寫。
+- [x] 更新 API、架構、CHANGELOG 與任務狀態。
+- [ ] 人工 Review。不 Commit、不 Push。正式執行檔手動驗收尚未另開。
 
 ### 最新執行範圍覆蓋（Issue #5，2026-10-30）
 

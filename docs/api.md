@@ -44,11 +44,13 @@ Token 由本機 CLI 核發、撤銷與輪替，不提供管理 HTTP。明文只�
 | source | 必填、非空白，最多 16 KiB UTF-8；純字串，不要求 JSON |
 | created_at、updated_at | 伺服器管理，請求不得指定 |
 | version | 初始 1，每次成功 PATCH／首次封存遞增，請求不得指定 |
+| confirmed_by | 進入 confirmed 時寫入的 Token 名稱；draft 為 null。請求不得指定 |
+| confirmed_at | 進入 confirmed 的 UTC 時間；draft 為 null。請求不得指定 |
 | usable_as_rule | 伺服器推導：未封存且 status=confirmed 時為 true |
 
 scope／project 是知識分類與篩選，並非 ACL。沿用已確認的最小 Schema，不限制 personal／project 組合，也不自動合併個人與專案範圍。呼叫端應明確傳篩選條件，避免將其他專案知識當作本專案規範。
 
-confirmed 是可信本機呼叫端指定的狀態，不代表伺服器驗證證據或經人工核准，也不賦予內容高於使用者指示的權限。
+進入 `confirmed` 時，伺服器寫入當時 Token 的名稱與時間。已經是 `confirmed` 且內容沒變時，重複送出 `status=confirmed` 不改寫。改成 `deprecated` 時保留；回到 `draft` 時清空。Token 改名不回寫既有確認者。搜尋結果不含這兩欄。確認不代表伺服器驗證證據，也不賦予內容高於使用者指示的權限。
 
 ## POST /api/v1/knowledge
 

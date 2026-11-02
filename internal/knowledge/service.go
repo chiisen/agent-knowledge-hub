@@ -42,6 +42,9 @@ func (s *Service) Create(ctx context.Context, input Create) (Knowledge, error) {
 	if err := authorizeProject(ctx, k.Project); err != nil {
 		return Knowledge{}, err
 	}
+	if err := stampConfirmation(ctx, "", &k, now); err != nil {
+		return Knowledge{}, err
+	}
 	return s.repo.Create(ctx, k)
 }
 
@@ -155,6 +158,7 @@ func (s *Service) Update(ctx context.Context, id string, version int64, p Patch)
 	if k.Version != version {
 		return Knowledge{}, ErrConflict
 	}
+	previous := k.Status
 	updated, err := applyPatch(k, p)
 	if err != nil {
 		return Knowledge{}, err
@@ -163,6 +167,9 @@ func (s *Service) Update(ctx context.Context, id string, version int64, p Patch)
 		return Knowledge{}, err
 	}
 	updated.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
+	if err := stampConfirmation(ctx, previous, &updated, updated.UpdatedAt); err != nil {
+		return Knowledge{}, err
+	}
 	return s.repo.Update(ctx, updated, version)
 }
 
@@ -245,6 +252,28 @@ type grantKey struct{}
 type Grant struct {
 	Projects []string
 	Enforce  bool
+	Actor    string
+}
+
+func stampConfirmation(ctx context.Context, previous string, k *Knowledge, now time.Time) error {
+	if k.Status == "confirmed" && previous != "confirmed" {
+		name := strings.TrimSpace(grantFrom(ctx).Actor)
+		if name == "" {
+			if grantFrom(ctx).Enforce {
+				return fmt.Errorf("%w: confirmed knowledge requires the token name", ErrInvalid)
+			}
+			return nil
+		}
+		k.ConfirmedBy = &name
+		stamp := now
+		k.ConfirmedAt = &stamp
+		return nil
+	}
+	if k.Status == "draft" {
+		k.ConfirmedBy = nil
+		k.ConfirmedAt = nil
+	}
+	return nil
 }
 
 func WithGrant(ctx context.Context, grant Grant) context.Context {

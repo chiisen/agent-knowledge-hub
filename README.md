@@ -2,7 +2,7 @@
 
 輕量、可自行部署的 AI Agent 長期知識 API Server。使用 Go、net/http 與 SQLite，不使用 Docker 或大型 Framework。
 
-Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、Milestone 3 新增 FTS5 全文搜尋；Issue #2／Milestone 4 完成 HTTP／SQLite 併發與資源強化。Issue #4 加入 API Token，Issue #5 加入 Project 白名單。MCP、Embedding 與 Web UI 尚未實作。完整契約見 [docs/api.md](docs/api.md)。
+Milestone 1 已提交為 44526f9。Milestone 2 完成 Knowledge CRUD、Milestone 3 新增 FTS5 全文搜尋；Issue #2／Milestone 4 完成 HTTP／SQLite 併發與資源強化。Issue #4 加入 API Token，Issue #5 加入 Project 白名單，Issue #8 記錄知識確認者。MCP、Embedding 與 Web UI 尚未實作。完整契約見 [docs/api.md](docs/api.md)。
 
 ## 開發環境
 
