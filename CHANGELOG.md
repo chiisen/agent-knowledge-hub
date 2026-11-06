@@ -4,7 +4,15 @@
 
 ## [Unreleased]
 
+### 修正
+
+- Windows SQLite 初始化測試改用合法的 `folder #` 路徑；其他平台保留 `folder ?#`。保留特殊字元路徑、初始化與連線 PRAGMA 驗證，不跳過測試或修改產品行為。
+
 ### 新增
+
+- 新增 PowerShell 7 一鍵記憶驗收腳本：建置實際執行檔，使用暫存 SQLite 與臨時 loopback 埠，驗證確認、中文搜尋、ETag 衝突、強制重啟持久化與封存；輸出 PASS／FAIL，不顯示 Token，結束時清理測試程序與資料。
+
+- 新增 Windows 記憶功能 Review Report 與獨立測試資料庫的 PowerShell 操作流程；記錄持久化、搜尋索引、備份還原通過，以及初始化測試路徑不相容 Windows 的失敗結果。未修改產品行為。
 
 - Issue #8：知識進入 confirmed 時記錄 Token 名稱與確認時間。deprecated 保留，回到 draft 清空。單筆與列表回傳這兩欄，搜尋不回。
 

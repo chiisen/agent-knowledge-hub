@@ -2,6 +2,10 @@
 
 狀態：Milestone 1–4 與 Issue #4、#5、#8 已實作。Issue #8 確認者等待 Review。
 
+## 記憶程序驗收
+
+`scripts/memory-smoke.ps1` 是外部驗收工具，不改變服務架構。它建置真正的 CLI／HTTP 執行檔，以獨立暫存 SQLite 和 OS 分配的 loopback 埠，驗證 Token 核發、知識生命週期、確認者與搜尋索引。強制終止後重用同一資料庫和 Token，檢查資料、版本與確認資訊仍一致；這是程序中止恢復驗收，不是 Graceful Shutdown 或斷電測試。日誌和 CLI 輸出由腳本捕捉，不印出 Token；最終僅清理本次建立的暫存目錄與程序。
+
 ## Issue #8：確認者
 
 - `006_knowledge_confirmation.sql` 新增 `confirmed_by`、`confirmed_at`。舊資料為 NULL。

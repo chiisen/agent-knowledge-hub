@@ -17,7 +17,12 @@ import (
 
 func TestOpenInitializesSQLite(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "folder ?#", "knowledge.db"))
+	folder := "folder ?#"
+	if runtime.GOOS == "windows" {
+		// Windows forbids '?'; keep space and '#' to exercise URI escaping.
+		folder = "folder #"
+	}
+	db, err := Open(ctx, filepath.Join(t.TempDir(), folder, "knowledge.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

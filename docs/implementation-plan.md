@@ -7,6 +7,17 @@
 > 執行方式：依 Milestone 逐階段實作、測試及人工 Code Review；未經授權不得跨階段。
 > AI Agent 執行時使用適用的 executing-plans 流程；本文件不授權自動 commit、push 或開始下一階段。
 
+### 記憶驗收補強（2026-11-07）
+
+使用者授權先實作一鍵記憶驗收腳本；不擴增 MCP、語意搜尋或產品 API。
+
+- [x] 建立 PowerShell 7 腳本，建置真實執行檔，使用獨立暫存 DB 與臨時 loopback 埠。
+- [x] 驗證草稿、確認者、中文搜尋、ETag 衝突、程序強制重啟持久化與封存。
+- [x] Windows 實際執行各步 PASS，停止測試程序並清理暫存資料。
+- [ ] macOS／Linux 腳本實機驗證；本輪不宣稱跨平台驗收完成。
+
+驗收結果與限制見 `docs/memory-review.md`。完成後交付 Review，不 Commit／Push。
+
 ### 最新執行範圍覆蓋（Issue #8，2026-10-30）
 
 已確認：只記確認者，不留修訂歷史。確認者是伺服器寫入的 Token 名稱。單筆與列表回傳；搜尋不回。
