@@ -7,6 +7,15 @@
 > 執行方式：依 Milestone 逐階段實作、測試及人工 Code Review；未經授權不得跨階段。
 > AI Agent 執行時使用適用的 executing-plans 流程；本文件不授權自動 commit、push 或開始下一階段。
 
+### Issue #7 白名單執行檔驗收（2026-11-10）
+
+使用者授權以編譯出的執行檔手動驗收 Issue #5。不改產品行為。
+
+- [x] macOS arm64：核發、越權 404／403、列表與搜尋隔離、空 project、rotate 沿用與替換、無 project 列的舊 Token、SIGTERM 重啟。
+- [ ] Windows／Linux 實機。
+
+紀錄見 `docs/issue-7-review.md`。此節只收文件，尚未 push。
+
 ### 記憶驗收補強（2026-11-07）
 
 使用者授權先實作一鍵記憶驗收腳本；不擴增 MCP、語意搜尋或產品 API。
@@ -34,7 +43,7 @@
 - [x] 005 Migration 與 issue／rotate／list 的 project 白名單。
 - [x] GET、列表、搜尋、新增、PATCH、封存都在伺服器端檢查；越權測試涵蓋 UUID、搜尋與 project 變更。
 - [x] 更新 README、API、架構、CHANGELOG 與任務狀態。
-- [ ] 人工 Review。不 Commit、不 Push。正式執行檔手動驗收仍屬 Issue #6，且 #6 尚未涵蓋白名單。
+- [ ] 人工 Review。不 Commit、不 Push。白名單執行檔驗收見 Issue #7 與 `docs/issue-7-review.md`；Windows／Linux 未驗。Issue #6 只涵蓋 Token 認證。
 
 ### 最新執行範圍覆蓋（Issue #4，2026-10-30）
 
