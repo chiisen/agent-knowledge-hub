@@ -77,7 +77,7 @@ pwsh -NoProfile -File scripts/memory-smoke.ps1
 
 腳本建置目前原始碼，以獨立暫存資料庫與 loopback 臨時埠啟動實際執行檔。逐項驗證草稿、確認者、中文搜尋、舊 ETag 拒絕、強制停止後重啟持久化，以及封存隱藏。每項輸出 PASS／FAIL；成功退出 0，失敗退出 1；Token 不顯示，完成或一般失敗時停止測試程序並清理暫存目錄。建置／CLI 最長等候 180 秒、啟動 15 秒、HTTP 10 秒；缺少工具時會顯示失敗階段。
 
-重啟驗收使用強制終止，驗證程序中止後已提交資料的恢復，不代表斷電耐久性或 Graceful Shutdown 驗收。請讓腳本執行結束；關閉終端或強制終止腳本本身可能中斷清理。此腳本本輪僅在 Windows 實機驗證。
+重啟驗收使用強制終止，驗證程序中止後已提交資料的恢復，不代表斷電耐久性或 Graceful Shutdown 驗收。請讓腳本執行結束；關閉終端或強制終止腳本本身可能中斷清理。macOS 與 Windows 使用同一支腳本。2026-11-10 在 macOS 27.2、darwin/arm64、PowerShell 7.5.4 實機全部 PASS，退出碼 0。Linux 尚未實機驗證。
 
 ```sh
 go build ./...

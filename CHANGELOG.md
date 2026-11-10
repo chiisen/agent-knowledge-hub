@@ -10,6 +10,8 @@
 
 ### 新增
 
+- 記錄 macOS 使用既有 `scripts/memory-smoke.ps1` 的跑法與 2026-11-10 實機結果。未另寫腳本，也未修改產品行為。Linux 仍未實機驗證。
+
 - 新增 Issue #7 Review Report：macOS arm64 以編譯執行檔驗收 Project 白名單。未修改產品行為。Windows／Linux 未實機驗證。
 
 - 新增 PowerShell 7 一鍵記憶驗收腳本：建置實際執行檔，使用暫存 SQLite 與臨時 loopback 埠，驗證確認、中文搜尋、ETag 衝突、強制重啟持久化與封存；輸出 PASS／FAIL，不顯示 Token，結束時清理測試程序與資料。

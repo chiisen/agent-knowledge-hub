@@ -23,7 +23,8 @@
 - [x] 建立 PowerShell 7 腳本，建置真實執行檔，使用獨立暫存 DB 與臨時 loopback 埠。
 - [x] 驗證草稿、確認者、中文搜尋、ETag 衝突、程序強制重啟持久化與封存。
 - [x] Windows 實際執行各步 PASS，停止測試程序並清理暫存資料。
-- [ ] macOS／Linux 腳本實機驗證；本輪不宣稱跨平台驗收完成。
+- [x] macOS arm64 以同一支 `scripts/memory-smoke.ps1` 實機全部 PASS（2026-11-10，PowerShell 7.5.4）。
+- [ ] Linux 腳本實機驗證。不宣稱三平台都已完成。
 
 驗收結果與限制見 `docs/memory-review.md`。完成後交付 Review，不 Commit／Push。
 

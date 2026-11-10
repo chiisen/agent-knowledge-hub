@@ -3,6 +3,16 @@
 日期：2026-11-07。環境：Windows、PowerShell 7.6.9、Go 1.27.3 windows/amd64。
 範圍：閱讀程式與既有測試、執行驗證，後續依授權修正 Windows 測試路徑；未修改產品程式、未進入新 Milestone。
 
+## macOS 腳本實機（2026-11-10）
+
+同一支 `scripts/memory-smoke.ps1`，不另寫 shell 版。環境：macOS 27.2、darwin/arm64、PowerShell 7.5.4。從專案根目錄執行：
+
+```sh
+pwsh -NoProfile -File scripts/memory-smoke.ps1
+```
+
+退出碼 0。通過項目：建置、核發 Token、啟動服務、寫入草稿、預設搜尋排除草稿、確認者、中文搜尋、舊 ETag 拒絕、強制停止後重啟仍保留資料與 Token、封存後讀取與搜尋隱藏、清理暫存資料。Linux 尚未實機驗證。下方 Windows 紀錄維持 2026-11-07 的結果。
+
 ## Windows 路徑修正後驗證
 
 後續已新增 `scripts/memory-smoke.ps1`。Windows 實際執行成功：建置、Token 核發、HTTP 啟動、寫入草稿、預設搜尋排除草稿、確認者、中文搜尋、舊 ETag 拒絕、強制重啟後同一 Token 讀取相同內容／版本／確認者並搜尋命中、封存後 GET 404 與搜尋空結果、程序及暫存清理均 PASS，退出碼 0。
@@ -19,7 +29,7 @@
 - `gofmt -l internal/sqlite/db_test.go`：無輸出；僅格式化本次修改的 Go 檔案。
 - `git diff --check` 與新增報告的 `git diff --no-index --check`：無空白錯誤。no-index 對新增檔案回傳差異狀態 1；LF/CRLF 提示不是空白錯誤。
 
-未在 macOS／Linux 重跑；其他平台保留原測試路徑。此次修正不改變 API、資料庫 Schema 或記憶行為。
+2026-11-07 寫下這段時尚未在 macOS／Linux 重跑測試路徑修正；其他平台保留原測試路徑。macOS 腳本實機見上方 2026-11-10 紀錄。此次修正不改變 API、資料庫 Schema 或記憶行為。
 
 ## 結論與待補項目
 
