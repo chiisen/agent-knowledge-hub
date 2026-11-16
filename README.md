@@ -67,6 +67,8 @@ cp data/knowledge.db /安全備份路徑/knowledge.db
 
 ## 驗證
 
+本機手動示範見 [docs/local-demo.md](docs/local-demo.md)。它使用獨立的 `data/demo.db` 與 `127.0.0.1:18080`，依序走健康檢查、草稿、確認、搜尋、白名單與封存。
+
 Windows 記憶功能檢查結果、已知問題與 PowerShell 手動實測流程見 [記憶功能 Review Report](docs/memory-review.md)。
 
 一鍵記憶驗收（需 PowerShell 7 與 PATH 中的 Go；從專案根目錄執行）：
