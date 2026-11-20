@@ -12,7 +12,8 @@
 使用者授權以編譯出的執行檔手動驗收 Issue #5。不改產品行為。
 
 - [x] macOS arm64：核發、越權 404／403、列表與搜尋隔離、空 project、rotate 沿用與替換、無 project 列的舊 Token、SIGTERM 重啟。
-- [ ] Windows／Linux 實機。
+- [ ] Windows 實機。
+- [ ] WSL2 Linux 執行環境驗收（不代表裸機 Linux 已驗證）。
 
 紀錄見 `docs/issue-7-review.md`。此節只收文件，尚未 push。
 
@@ -24,9 +25,29 @@
 - [x] 驗證草稿、確認者、中文搜尋、ETag 衝突、程序強制重啟持久化與封存。
 - [x] Windows 實際執行各步 PASS，停止測試程序並清理暫存資料。
 - [x] macOS arm64 以同一支 `scripts/memory-smoke.ps1` 實機全部 PASS（2026-11-10，PowerShell 7.5.4）。
-- [ ] Linux 腳本實機驗證。不宣稱三平台都已完成。
+- [ ] WSL2 執行 `scripts/memory-smoke.ps1`。完成前不宣稱 WSL2 驗收通過。
 
 驗收結果與限制見 `docs/memory-review.md`。完成後交付 Review，不 Commit／Push。
+
+### 後續平台驗收：WSL2
+
+因目前沒有可用的 Linux 主機，後續以 Windows 上的 WSL2 Linux 發行版執行 Linux runtime 驗收。WSL2 結果須標示發行版與 kernel，不等同裸機 Linux 驗證。
+
+- 將專案放在 WSL2 的 Linux 檔案系統（例如 `~/src/agent-knowledge-hub`），不要在 `/mnt/c` 的 Windows 掛載目錄執行 SQLite 驗收。
+- 準備 Go 1.27.3、PowerShell 7；執行 Race Detector 另需可用的 C 編譯器。
+- 記錄 `uname -a`、`cat /etc/os-release`、`go version`、`pwsh --version`。
+- 在專案根目錄執行：
+
+  ```sh
+  go build ./...
+  go test -count=1 ./...
+  go vet ./...
+  go test -race -count=1 ./...
+  pwsh -NoProfile -File scripts/memory-smoke.ps1
+  ```
+
+- 依 `docs/issue-7-review.md` 的案例，以實際編譯執行檔驗收 Project 白名單；使用暫存資料庫與 loopback 位址，並記錄 WSL2 環境。
+- 各項實際完成前維持未勾選，不以 macOS 測試或 Linux cross-compile 代替。
 
 ### 最新執行範圍覆蓋（Issue #8，2026-10-30）
 
@@ -44,7 +65,7 @@
 - [x] 005 Migration 與 issue／rotate／list 的 project 白名單。
 - [x] GET、列表、搜尋、新增、PATCH、封存都在伺服器端檢查；越權測試涵蓋 UUID、搜尋與 project 變更。
 - [x] 更新 README、API、架構、CHANGELOG 與任務狀態。
-- [ ] 人工 Review。不 Commit、不 Push。白名單執行檔驗收見 Issue #7 與 `docs/issue-7-review.md`；Windows／Linux 未驗。Issue #6 只涵蓋 Token 認證。
+- [ ] 人工 Review。不 Commit、不 Push。白名單執行檔驗收見 Issue #7 與 `docs/issue-7-review.md`；Windows／WSL2 未驗。Issue #6 只涵蓋 Token 認證。
 
 ### 最新執行範圍覆蓋（Issue #4，2026-10-30）
 
@@ -623,8 +644,8 @@ Benchmark 使用固定 seed、代表性中英資料，先測 1,000／10,000 筆�
 
 - [ ] 補齊安裝、Agent 存取、安全與手動維護文件。
 - [ ] 驗證停機備份與還原。
-- [ ] 建立 macOS／Windows／Linux 的建置與測試矩陣。
-- [ ] 明列未實機驗證平台，不以 cross-compile 代替執行驗證。
+- [ ] 建立 macOS／Windows／WSL2 的建置與測試矩陣。
+- [ ] 明列未驗證平台；WSL2 僅代表 WSL2 Linux 執行環境，不以 cross-compile 代替執行驗證，也不宣稱裸機 Linux 已驗證。
 - [ ] 確認授權、依賴與發行內容。
 
 驗收：文件可重現啟動與還原；發行矩陣、已知限制與驗證證據完整。發佈需另行授權。
