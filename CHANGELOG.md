@@ -6,6 +6,7 @@
 
 ### 修正
 
+- 同步 Issue #8 的人工 Review 狀態：2026-11-10 已對照 `79a9164` 完成 Review，指定確認者測試通過；全套 Race Detector 未重跑。
 - Windows SQLite 初始化測試改用合法的 `folder #` 路徑；其他平台保留 `folder ?#`。保留特殊字元路徑、初始化與連線 PRAGMA 驗證，不跳過測試或修改產品行為。
 
 ### 新增

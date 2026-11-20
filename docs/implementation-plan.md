@@ -1,6 +1,6 @@
 # agent-knowledge-hub 專案規劃、架構設計與實作計畫
 
-> 狀態：Milestone 1–4 與 Issue #4、#5、#8 已實作。Issue #8 確認者等待人工 Review。
+> 狀態：Milestone 1–4 與 Issue #4、#5、#8 已實作。Issue #8 已於 2026-11-10 完成人工 Review。
 > 整理日期：2026-10-28。
 > 來源：本次對話的專案需求與前一輪架構建議。
 > 文件建立不代表架構選項已獲確認。第 10 節列出必須確認的需求。
@@ -35,7 +35,7 @@
 - [x] 006 Migration 與進入 confirmed 時寫入、draft 清空、deprecated 保留、重複確認不變。
 - [x] 測試涵蓋 Token 改名後新確認使用新名稱，舊規則不回寫。
 - [x] 更新 API、架構、CHANGELOG 與任務狀態。
-- [ ] 人工 Review。不 Commit、不 Push。正式執行檔手動驗收尚未另開。
+- [x] 人工 Review（2026-11-10，對照 `main` 上的 `79a9164`；`go test -count=1 ./internal/httpapi/ -run TestConfirmationRecordsTokenName` 通過）。全套 `go test -race ./...` 未重跑；正式執行檔手動驗收尚未另開。
 
 ### 最新執行範圍覆蓋（Issue #5，2026-10-30）
 
