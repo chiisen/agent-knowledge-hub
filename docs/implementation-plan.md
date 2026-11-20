@@ -65,7 +65,7 @@
 - [x] 005 Migration 與 issue／rotate／list 的 project 白名單。
 - [x] GET、列表、搜尋、新增、PATCH、封存都在伺服器端檢查；越權測試涵蓋 UUID、搜尋與 project 變更。
 - [x] 更新 README、API、架構、CHANGELOG 與任務狀態。
-- [ ] 人工 Review。不 Commit、不 Push。白名單執行檔驗收見 Issue #7 與 `docs/issue-7-review.md`；Windows／WSL2 未驗。Issue #6 只涵蓋 Token 認證。
+- [ ] 獨立人工 Code Review（GitHub 討論未找到明確 Review 紀錄）。Issue #5 已關閉；Issue #7 的 macOS 執行檔驗收通過，Windows／WSL2 尚未驗收，見上方平台待辦。
 
 ### 最新執行範圍覆蓋（Issue #4，2026-10-30）
 
@@ -74,7 +74,7 @@
 - [x] 004 Migration 保存 SHA-256；issue／list／revoke／rotate。
 - [x] CRUD 與搜尋要求 Bearer Token；缺少、錯誤、撤銷、過期與日誌不含 Token 均有測試。
 - [x] 更新 README、API、架構、CHANGELOG 與任務狀態。
-- [ ] 人工 Review。不 Commit、不 Push、不開始 Issue #5。
+- [ ] 獨立人工 Code Review（GitHub 討論未找到明確 Review 紀錄）。Issue #4 已關閉；Issue #6 的 Windows 執行檔驗收完成，但未驗 POSIX SIGTERM。Issue #5 已由後續授權開展。
 
 ### 最新執行範圍覆蓋（Issue #2，2026-10-28）
 
@@ -99,7 +99,7 @@ M2 執行順序：
 - [x] 先寫 HTTP 整合測試，再串接 CRUD、JSON、ETag 與錯誤／日誌處理。
 - [x] 完成取消、分頁、封存與錯誤保密檢查；build／test／vet／race 通過。
 - [x] 更新 API／架構文件與任務狀態；實際執行檔 CRUD／關機驗證通過。
-- [ ] 使用者人工 Review；目前停止，不 Commit／Push，不進入下一階段。
+歷史停止點：其後已明確授權 Milestone 3／Issue #1，因此此停止條件不是現行待辦；這不代表已有獨立人工 Code Review 紀錄。
 
 M1 的 001 Migration 保持不變；既有 Migration 冪等測試將已套用筆數由 1 改為 2，以對應新增版本，不刪除資料保留、約束或回滾斷言。其他 M1 測試保留。
 
@@ -556,7 +556,7 @@ Benchmark 使用固定 seed、代表性中英資料，先測 1,000／10,000 筆�
 
 ## 9. 分階段實作與驗收
 
-本節將前輪階段編為 Milestone，仍為待 Review 的劃分。使用者先前要求「只完成 Milestone 1 後停止」的執行邊界持續有效；本次只有文件整理授權。
+本節是早期的分階段規劃，不是現行待辦清單。M1–M4 與 Issue #1–#8 的實際完成狀態以本文件前面的最新執行紀錄、GitHub issue 關閉留言及 Review Report 為準；以下舊 checklist 未勾選項目不得單獨視為未完成工作。Issue #4／#5 的人工 Code Review 證據缺口與 Windows／WSL2 未驗證狀態，已在前述最新執行紀錄分別保留。M5／M6 是未授權的後續規劃，不代表現在開始執行。
 
 ### Milestone 0：決策收斂
 
